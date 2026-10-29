@@ -39,6 +39,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -66,6 +67,8 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.voicetodo.VoiceTodoApp.EngineState
 import app.voicetodo.data.Task
 import app.voicetodo.parser.MentionKind
+import app.voicetodo.update.UpdateState
+import app.voicetodo.update.Updater
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -101,22 +104,34 @@ private fun HomeScreen(vm: MainViewModel, setup: () -> SetupState, openSetting: 
         setupState = setup()
     }
     var typing by remember { mutableStateOf(false) }
+    val update by vm.updater.state.collectAsState()
     val today = LocalDate.now()
     val open = tasks.filter { !it.done }
     val done = tasks.filter { it.done }
 
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-        Text(
-            "语音待办",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp),
-        )
+        Row(
+            Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 16.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "语音待办",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = { vm.updater.check() }) {
+                Text("v${vm.updater.currentVersion} · 检查更新", style = MaterialTheme.typography.labelMedium)
+            }
+        }
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            if (update != UpdateState.Idle) {
+                item { UpdateCard(update, vm.updater) }
+            }
             if (!setupState.complete) {
                 item {
                     SetupCard(
@@ -163,8 +178,54 @@ private fun HomeScreen(vm: MainViewModel, setup: () -> SetupState, openSetting: 
 }
 
 @Composable
+private fun UpdateCard(state: UpdateState, updater: Updater) {
+    fun mb(bytes: Long) = "%.0f MB".format(bytes / 1_048_576.0)
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            when (state) {
+                UpdateState.Idle -> Unit
+                UpdateState.Checking -> Text("正在检查更新…")
+                UpdateState.UpToDate -> {
+                    Text("已经是最新版本 v${updater.currentVersion}")
+                    TextButton(onClick = updater::dismiss) { Text("好") }
+                }
+                is UpdateState.Available -> {
+                    val r = state.release
+                    Text("发现新版本 v${r.version}（${mb(r.size)}）", fontWeight = FontWeight.SemiBold)
+                    if (r.notes.isNotBlank()) Text(r.notes, style = MaterialTheme.typography.bodySmall)
+                    if (updater.isMetered) {
+                        Text("当前在用移动数据，建议连上 Wi-Fi 再下载", color = Amber, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { updater.downloadAndInstall(r) }) { Text("下载并安装") }
+                        TextButton(onClick = { updater.skip(r) }) { Text("跳过此版本") }
+                    }
+                }
+                is UpdateState.Downloading -> {
+                    val r = state.release
+                    Text("正在下载 v${r.version}：${mb(state.done)} / ${mb(r.size)}")
+                    LinearProgressIndicator(
+                        progress = { if (r.size > 0) state.done.toFloat() / r.size else 0f },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    TextButton(onClick = updater::cancelDownload) { Text("暂停") }
+                }
+                is UpdateState.Installing -> Text("正在安装 v${state.release.version}，请在系统弹窗中确认…")
+                is UpdateState.Failed -> {
+                    Text(state.message, color = MaterialTheme.colorScheme.error)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        state.release?.let { r -> Button(onClick = { updater.downloadAndInstall(r) }) { Text("重试") } }
+                        TextButton(onClick = updater::dismiss) { Text("关闭") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun SetupCard(state: SetupState, requestNotifications: () -> Unit, openSetting: (SetupItem) -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("让提醒准时响起", fontWeight = FontWeight.SemiBold)
             if (!state.notifications) {

@@ -3,6 +3,7 @@ package app.voicetodo
 import android.app.Application
 import app.voicetodo.reminder.Reminders
 import app.voicetodo.speech.SpeechEngine
+import app.voicetodo.update.Updater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,6 +21,8 @@ class VoiceTodoApp : Application() {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     lateinit var speech: SpeechEngine
         private set
+    lateinit var updater: Updater
+        private set
 
     private val _engineState = MutableStateFlow<EngineState>(EngineState.Loading)
     val engineState: StateFlow<EngineState> = _engineState
@@ -28,6 +31,7 @@ class VoiceTodoApp : Application() {
         super.onCreate()
         Reminders.createChannel(this)
         speech = SpeechEngine(assets)
+        updater = Updater(this, scope)
         scope.launch {
             _engineState.value = try {
                 speech.load()

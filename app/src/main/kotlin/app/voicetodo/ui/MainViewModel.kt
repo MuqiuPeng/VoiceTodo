@@ -56,6 +56,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val tasks: StateFlow<List<Task>> = store.tasks
     val engineState = voiceApp.engineState
+    val updater = voiceApp.updater
 
     private val _capture = MutableStateFlow<Capture>(Capture.Idle)
     val capture: StateFlow<Capture> = _capture

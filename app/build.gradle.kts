@@ -11,8 +11,11 @@ android {
         applicationId = "app.voicetodo"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        // The release tag is v<versionName>; the in-app updater compares
+        // against it. versionCode follows from it so the two cannot drift.
+        val version = "0.1.0"
+        versionName = version
+        versionCode = version.split('.').map(String::toInt).let { (a, b, c) -> a * 10000 + b * 100 + c }
 
         // Phones (and the Apple-silicon emulator) are arm64; the other ABIs
         // in the sherpa-onnx AAR would add ~35 MB for devices nobody has.
@@ -21,10 +24,26 @@ android {
         }
     }
 
+    // Updates install only over an APK signed with the same key, so releases
+    // must never fall back to the per-machine debug key. The keystore and its
+    // password live outside the repo, in ~/.gradle/gradle.properties.
+    val keystore = providers.gradleProperty("VOICETODO_KEYSTORE").orNull
+    val keystorePassword = providers.gradleProperty("VOICETODO_KEYSTORE_PASSWORD").orNull
+    signingConfigs {
+        if (keystore != null && keystorePassword != null) {
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = keystorePassword
+                keyAlias = "voicetodo"
+                keyPassword = keystorePassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

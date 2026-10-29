@@ -17,6 +17,15 @@ OpenAI-compatible endpoint to refine parsing when online is planned, not built.
   carry 完成 / 1小时后再提醒. Alarms are restored after reboot, clock
   changes and exact-alarm permission changes.
 
+## Install
+
+Download `VoiceTodo-<version>.apk` from the
+[latest release](https://github.com/MuqiuPeng/VoiceTodo/releases/latest) and
+open it on the phone (allow "install unknown apps" for the browser or file
+manager when asked). After that the app updates itself: it checks GitHub once
+a day, or on "检查更新", and offers to download and install a newer release.
+The update check is the only network traffic the app makes.
+
 ## Building
 
 The speech runtime (sherpa-onnx 1.13.8 AAR) and model (~240 MB) are not in
@@ -32,13 +41,25 @@ Then, with the Android SDK at `~/Library/Android/sdk` (see `local.properties`):
 ./gradlew :app:assembleDebug
 ```
 
-The APK is `app/build/outputs/apk/debug/app-debug.apk` (~280 MB, almost all
+Releases are signed with a key kept outside the repo (`VOICETODO_KEYSTORE`
+and `VOICETODO_KEYSTORE_PASSWORD` in `~/.gradle/gradle.properties`). Android
+only installs an update signed with the same key as the installed app, so
+**losing that keystore means users must uninstall to upgrade**. To publish,
+bump `val version` in `app/build.gradle.kts`, commit, then:
+
+```bash
+scripts/release.sh "这一版改了什么"
+```
+
+The debug APK is `app/build/outputs/apk/debug/app-debug.apk` (~280 MB, almost all
 model). Debug builds also take input from adb, which is how the emulator was
 tested without a voice:
 
 ```bash
 adb shell am start -n app.voicetodo/.ui.MainActivity --es debug_text "明天下午三点开会"
 adb shell am start -n app.voicetodo/.ui.MainActivity --es debug_wav /data/data/app.voicetodo/files/t1.wav
+# updater against a local server shaped like GitHub's releases/latest JSON
+adb shell am start -n app.voicetodo/.ui.MainActivity --es debug_update_url http://10.0.2.2:8771/latest.json
 ```
 
 ## Parser

@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         handleDebugIntent(intent)
+        vm.updater.checkIfDue()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -46,13 +47,18 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Debug builds accept `--es debug_wav <path>` or `--es debug_text <text>`
-     * from adb, so the pipeline can be driven on an emulator with no voice.
+     * Debug builds accept `--es debug_wav <path>`, `--es debug_text <text>` and
+     * `--es debug_update_url <url>` from adb, so the pipeline and the updater
+     * can be driven on an emulator with no voice and no published release.
      */
     private fun handleDebugIntent(intent: Intent?) {
         if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0 || intent == null) return
         intent.getStringExtra("debug_wav")?.let { vm.recognizeFile(it) }
         intent.getStringExtra("debug_text")?.let { vm.parseText(it) }
+        intent.getStringExtra("debug_update_url")?.let {
+            vm.updater.endpoint = it
+            vm.updater.check()
+        }
     }
 
     fun setupState(): SetupState {
