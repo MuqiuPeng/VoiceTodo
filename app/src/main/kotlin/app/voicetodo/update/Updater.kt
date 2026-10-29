@@ -8,6 +8,7 @@ import android.content.pm.PackageInstaller
 import android.net.ConnectivityManager
 import android.net.Uri
 import android.provider.Settings
+import app.voicetodo.net.Download
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -18,10 +19,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
-import java.io.FileOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
-import java.security.MessageDigest
 
 /** A GitHub release that carries an APK. */
 data class Release(
@@ -68,7 +65,7 @@ class Updater(private val context: Context, private val scope: CoroutineScope) {
     init {
         // A finished update leaves its APK behind; once the new version is running it is garbage.
         val downloaded = prefs.getString(KEY_DOWNLOADED, null)?.let(Version::parse)
-        if (downloaded == null || downloaded <= currentVersion) apkFile().parentFile?.deleteRecursively()
+        if (downloaded == null || downloaded <= currentVersion) updateDir().deleteRecursively()
     }
 
     val isMetered: Boolean
@@ -145,7 +142,7 @@ class Updater(private val context: Context, private val scope: CoroutineScope) {
     // --- network ---------------------------------------------------------
 
     private suspend fun fetchLatest(): Release? = withContext(Dispatchers.IO) {
-        val conn = open(endpoint)
+        val conn = Download.open(endpoint)
         conn.setRequestProperty("Accept", "application/vnd.github+json")
         try {
             if (conn.responseCode == 404) return@withContext null // No release published yet.
@@ -169,80 +166,19 @@ class Updater(private val context: Context, private val scope: CoroutineScope) {
         }
     }
 
-    private fun apkFile() = File(context.cacheDir, "update/update.apk")
+    private fun updateDir() = File(context.cacheDir, "update")
 
-    private suspend fun download(release: Release): File = withContext(Dispatchers.IO) {
-        val apk = apkFile()
-        val part = File(apk.parentFile, "update.apk.part")
-        apk.parentFile!!.mkdirs()
-        if (prefs.getString(KEY_DOWNLOADED, null) != release.tag) {
-            apk.delete()
-            part.delete()
-        }
-        if (apk.exists() && apk.length() == release.size) return@withContext apk
-
-        var have = part.length()
-        _state.value = UpdateState.Downloading(release, have)
-        val conn = open(release.apkUrl)
-        if (have > 0) conn.setRequestProperty("Range", "bytes=$have-")
-        try {
-            when (conn.responseCode) {
-                206 -> Unit
-                200 -> { have = 0; part.delete() } // Server ignored the range; start over.
-                else -> error("下载失败 HTTP ${conn.responseCode}")
-            }
+    /** One file per release, so a partial download is never resumed into another version. */
+    private suspend fun download(release: Release): File {
+        _state.value = UpdateState.Downloading(release, 0)
+        return Download.fetch(
+            release.apkUrl,
+            File(updateDir(), "VoiceTodo-${release.version}.apk"),
+            release.size,
+            release.sha256,
+        ) { _state.value = UpdateState.Downloading(release, it) }.also {
             prefs.edit().putString(KEY_DOWNLOADED, release.tag).apply()
-            conn.inputStream.use { input ->
-                FileOutputStream(part, have > 0).use { out ->
-                    val buf = ByteArray(256 * 1024)
-                    var lastReport = 0L
-                    while (isActive) {
-                        val n = input.read(buf)
-                        if (n < 0) break
-                        out.write(buf, 0, n)
-                        have += n
-                        if (have - lastReport > 1_000_000) {
-                            lastReport = have
-                            _state.value = UpdateState.Downloading(release, have)
-                        }
-                    }
-                }
-            }
-        } finally {
-            conn.disconnect()
         }
-        if (!isActive) error("已取消")
-        if (part.length() != release.size) error("文件大小不对（${part.length()} / ${release.size}）")
-        release.sha256?.let { expected ->
-            val actual = sha256(part)
-            if (!actual.equals(expected, ignoreCase = true)) {
-                part.delete()
-                error("文件校验失败，已删除，请重试")
-            }
-        }
-        part.renameTo(apk)
-        apk
-    }
-
-    private fun open(url: String): HttpURLConnection =
-        (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 15_000
-            readTimeout = 30_000
-            instanceFollowRedirects = true
-            setRequestProperty("User-Agent", "VoiceTodo/$currentVersion")
-        }
-
-    private fun sha256(f: File): String {
-        val md = MessageDigest.getInstance("SHA-256")
-        f.inputStream().use { input ->
-            val buf = ByteArray(1 shl 20)
-            while (true) {
-                val n = input.read(buf)
-                if (n < 0) break
-                md.update(buf, 0, n)
-            }
-        }
-        return md.digest().joinToString("") { "%02x".format(it) }
     }
 
     // --- install ---------------------------------------------------------

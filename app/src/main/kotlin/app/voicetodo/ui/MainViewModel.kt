@@ -78,6 +78,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val tasks: StateFlow<List<Task>> = store.tasks
     val engineState = voiceApp.engineState
     val updater = voiceApp.updater
+    val packs = voiceApp.packs
+
+    fun deleteSpeechPack() = voiceApp.deleteSpeechPack()
 
     private val _capture = MutableStateFlow<Capture>(Capture.Idle)
     val capture: StateFlow<Capture> = _capture

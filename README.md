@@ -11,7 +11,9 @@ OpenAI-compatible endpoint to refine parsing when online is planned, not built.
   builds and tests without the Android SDK. Entry point:
   `TaskParser().parse(text, now)`.
 - `app/` — the Android app (Kotlin, Compose, minSdk 26). One input bar at
-  the bottom: tap to type, hold to talk (slide up to cancel). Speech →
+  the bottom: tap to type, hold to talk (slide up to cancel). A drawer (menu
+  button, or swipe from the left) holds 专有名词 and 设置 (speech pack,
+  reminder permissions, updates, help). Speech →
   SenseVoice int8 via sherpa-onnx, fully offline → parser → confirmation
   card → SQLite → one exact alarm per task (lead time, then due time;
   date-only tasks the evening before and the morning of). Notifications
@@ -53,16 +55,22 @@ Download `VoiceTodo-<version>.apk` from the
 open it on the phone (allow "install unknown apps" for the browser or file
 manager when asked). After that the app updates itself: it checks GitHub once
 a day, or on "检查更新", and offers to download and install a newer release.
-The update check is the only network traffic the app makes.
+Voice input needs the speech pack, downloaded once from 设置 → 语音包
+(~230 MB). Checking for updates and downloading the pack are the only network
+traffic the app makes.
 
 ## Building
 
-The speech runtime (sherpa-onnx 1.13.8 AAR) and model (~240 MB) are not in
-git:
+The speech runtime (sherpa-onnx 1.13.8 AAR) is not in git:
 
 ```bash
-./scripts/fetch-model.sh
+./scripts/fetch-deps.sh
 ```
+
+The speech model is not part of the APK. It is published as a speech pack:
+assets of the `speech-sensevoice-2025-09-09` pre-release (a pre-release, so
+the updater's `releases/latest` never sees it), with size and SHA-256 pinned
+in `SpeechPacks.kt`.
 
 Then, with the Android SDK at `~/Library/Android/sdk` (see `local.properties`):
 
@@ -80,8 +88,7 @@ bump `val version` in `app/build.gradle.kts`, commit, then:
 scripts/release.sh "这一版改了什么"
 ```
 
-The debug APK is `app/build/outputs/apk/debug/app-debug.apk` (~280 MB, almost all
-model). Debug builds also take input from adb, which is how the emulator was
+The debug APK is `app/build/outputs/apk/debug/app-debug.apk` (~45 MB). Debug builds also take input from adb, which is how the emulator was
 tested without a voice:
 
 ```bash

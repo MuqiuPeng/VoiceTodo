@@ -1,7 +1,6 @@
 package app.voicetodo.speech
 
 import android.annotation.SuppressLint
-import android.content.res.AssetManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
@@ -19,35 +18,41 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 /**
- * On-device speech recognition: SenseVoice (int8) through sherpa-onnx, read
- * straight from the APK's assets. Nothing leaves the phone.
+ * On-device speech recognition: SenseVoice (int8) through sherpa-onnx, from
+ * a speech pack the user downloaded (see [SpeechPacks]). Nothing leaves the
+ * phone.
  *
- * Loading the model takes a few seconds, so it happens once, off the main
- * thread, when the app starts.
+ * Loading the model takes a few seconds, so it happens off the main thread,
+ * at startup or right after the pack finishes downloading.
  */
-class SpeechEngine(private val assets: AssetManager) {
+class SpeechEngine {
     @Volatile
     private var recognizer: OfflineRecognizer? = null
 
     val isReady: Boolean get() = recognizer != null
 
-    suspend fun load() = withContext(Dispatchers.Default) {
-        if (recognizer != null) return@withContext
+    suspend fun load(dir: File) = withContext(Dispatchers.Default) {
+        unload()
         val config = OfflineRecognizerConfig(
             featConfig = FeatureConfig(sampleRate = SAMPLE_RATE, featureDim = 80),
             modelConfig = OfflineModelConfig(
                 senseVoice = OfflineSenseVoiceModelConfig(
-                    model = "sense-voice/model.int8.onnx",
+                    model = File(dir, "model.int8.onnx").absolutePath,
                     language = "zh",
                     // Writes "三点半" as "3点半" and adds punctuation, which the
                     // task parser's clause splitting relies on.
                     useInverseTextNormalization = true,
                 ),
-                tokens = "sense-voice/tokens.txt",
+                tokens = File(dir, "tokens.txt").absolutePath,
                 numThreads = 2,
             ),
         )
-        recognizer = OfflineRecognizer(assets, config)
+        recognizer = OfflineRecognizer(null, config)
+    }
+
+    fun unload() {
+        recognizer?.release()
+        recognizer = null
     }
 
     suspend fun transcribe(samples: FloatArray): String = withContext(Dispatchers.Default) {

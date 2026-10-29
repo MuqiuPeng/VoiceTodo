@@ -4,6 +4,5 @@ build/
 *.iml
 local.properties
 .DS_Store
-# Large binaries, fetched by scripts/fetch-model.sh
+# The speech runtime AAR, fetched by scripts/fetch-deps.sh
 app/libs/*.aar
-app/src/main/assets/sense-voice/

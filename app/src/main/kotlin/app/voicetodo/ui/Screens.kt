@@ -4,8 +4,6 @@ import android.Manifest
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.pm.PackageManager
-import android.os.Build
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -81,7 +79,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.voicetodo.VoiceTodoApp.EngineState
 import app.voicetodo.data.Task
 import app.voicetodo.parser.MentionKind
@@ -95,97 +92,35 @@ import java.time.LocalTime
 
 private val Amber = Color(0xFFB26A00)
 
-@Composable
-fun AppScreen(vm: MainViewModel, setup: () -> SetupState, openSetting: (SetupItem) -> Unit) {
-    val confirmation by vm.confirmation.collectAsState()
-    var showVocabulary by remember { mutableStateOf(false) }
-    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        val c = confirmation
-        when {
-            c != null -> {
-                BackHandler { vm.dismissConfirmation() }
-                ConfirmScreen(c, vm)
-            }
-            showVocabulary -> {
-                BackHandler { showVocabulary = false }
-                VocabularyScreen(vm, onBack = { showVocabulary = false })
-            }
-            else -> HomeScreen(vm, setup, openSetting, openVocabulary = { showVocabulary = true })
-        }
-    }
-}
-
 // --- home -------------------------------------------------------------------
 
 @Composable
-private fun HomeScreen(
-    vm: MainViewModel,
-    setup: () -> SetupState,
-    openSetting: (SetupItem) -> Unit,
-    openVocabulary: () -> Unit,
-) {
+fun HomeScreen(vm: MainViewModel, menu: @Composable () -> Unit, openSettings: () -> Unit) {
     val tasks by vm.tasks.collectAsState()
     val suggestions by vm.suggestions.collectAsState()
-    var setupState by remember { mutableStateOf(setup()) }
-    LifecycleResumeEffect(Unit) {
-        setupState = setup()
-        onPauseOrDispose { }
-    }
-    val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        setupState = setup()
-    }
-    val update by vm.updater.state.collectAsState()
     val today = LocalDate.now()
     val open = tasks.filter { !it.done }
     val done = tasks.filter { it.done }
 
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
         Row(
-            Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 16.dp, bottom = 8.dp),
+            Modifier.fillMaxWidth().padding(start = 8.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            menu()
             Text(
                 "语音待办",
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.padding(start = 4.dp),
             )
-            TextButton(onClick = openVocabulary) {
-                Text("专有名词", style = MaterialTheme.typography.labelMedium)
-            }
-            TextButton(onClick = { vm.updater.check() }) {
-                Text("v${vm.updater.currentVersion} · 检查更新", style = MaterialTheme.typography.labelMedium)
-            }
         }
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (update != UpdateState.Idle) {
-                item { UpdateCard(update, vm.updater) }
-            }
             items(suggestions, key = { "suggest-" + it.text }) { SuggestionCard(it, vm) }
-            if (!setupState.complete) {
-                item {
-                    SetupCard(
-                        setupState,
-                        requestNotifications = {
-                            if (Build.VERSION.SDK_INT >= 33) notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        },
-                        openSetting = openSetting,
-                    )
-                }
-            }
-            if (open.isEmpty() && done.isEmpty()) {
-                item {
-                    Text(
-                        "长按下面的输入框说话，或点一下直接打字，比如：\n“周五下午三点前把报告发给老王，提前一小时提醒我”",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 32.dp, horizontal = 8.dp),
-                    )
-                }
-            }
             items(open, key = { it.id }) { TaskRow(it, today, vm) }
             if (done.isNotEmpty()) {
                 item {
@@ -199,12 +134,12 @@ private fun HomeScreen(
                 items(done, key = { it.id }) { TaskRow(it, today, vm) }
             }
         }
-        InputBar(vm)
+        InputBar(vm, openSettings)
     }
 }
 
 @Composable
-private fun UpdateCard(state: UpdateState, updater: Updater) {
+fun UpdateCard(state: UpdateState, updater: Updater) {
     fun mb(bytes: Long) = "%.0f MB".format(bytes / 1_048_576.0)
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -276,29 +211,17 @@ private fun SuggestionCard(suggestion: Term, vm: MainViewModel) {
 private fun splitAliases(s: String) = s.split(',', '，', '、').map(String::trim).filter(String::isNotEmpty)
 
 @Composable
-private fun VocabularyScreen(vm: MainViewModel, onBack: () -> Unit) {
+fun VocabularyScreen(vm: MainViewModel, onBack: () -> Unit) {
     val terms by vm.terms.collectAsState()
     var text by remember { mutableStateOf("") }
     var heard by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
-        Row(Modifier.padding(start = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("‹ 返回") }
-            Text("专有名词", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-        }
+        PageHeader("专有名词", onBack)
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            item {
-                Text(
-                    "公司名、人名、地名等。识别结果里发音相同的字会自动改成这里的写法；" +
-                        "这些词也不会被误当成时间（比如“周一科技”）。英文名或读音对不上的词，" +
-                        "可以填上它“常被听成”什么。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -311,9 +234,6 @@ private fun VocabularyScreen(vm: MainViewModel, onBack: () -> Unit) {
                         }) { Text("添加") }
                     }
                 }
-            }
-            if (terms.isEmpty()) {
-                item { Text("还没有添加任何词", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(8.dp)) }
             }
             items(terms, key = { it.text }) { t ->
                 Card(Modifier.fillMaxWidth()) {
@@ -333,38 +253,6 @@ private fun VocabularyScreen(vm: MainViewModel, onBack: () -> Unit) {
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun SetupCard(state: SetupState, requestNotifications: () -> Unit, openSetting: (SetupItem) -> Unit) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("让提醒准时响起", fontWeight = FontWeight.SemiBold)
-            if (!state.notifications) {
-                SetupLine("允许发送通知", "开启", requestNotifications)
-            }
-            if (!state.exactAlarms) {
-                SetupLine("允许设置精确闹钟，否则提醒可能晚到", "去设置") { openSetting(SetupItem.EXACT_ALARMS) }
-            }
-            if (!state.batteryUnrestricted) {
-                SetupLine("取消电池优化，避免后台被清理", "去设置") { openSetting(SetupItem.BATTERY) }
-            }
-            Text(
-                "小米、华为、OPPO、vivo 等手机还需要在系统设置里允许本应用“自启动”。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-            )
-            TextButton(onClick = { openSetting(SetupItem.APP_DETAILS) }) { Text("打开应用设置") }
-        }
-    }
-}
-
-@Composable
-private fun SetupLine(text: String, action: String, onClick: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        OutlinedButton(onClick = onClick) { Text(action) }
     }
 }
 
@@ -416,7 +304,7 @@ private fun TaskRow(task: Task, today: LocalDate, vm: MainViewModel) {
  * selection still works when editing.
  */
 @Composable
-private fun InputBar(vm: MainViewModel) {
+private fun InputBar(vm: MainViewModel, openSettings: () -> Unit) {
     val context = LocalContext.current
     val engine by vm.engineState.collectAsState()
     val capture by vm.capture.collectAsState()
@@ -544,6 +432,7 @@ private fun InputBar(vm: MainViewModel) {
                                             return@awaitEachGesture
                                         }
                                         when {
+                                            engine == EngineState.Missing -> openSettings()
                                             !ready -> hint = "语音模型还在加载，请稍等几秒"
                                             !micGranted -> micLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                             else -> {
@@ -609,7 +498,7 @@ private fun TextInputDialog(initial: String, onDismiss: () -> Unit, onSubmit: (S
 // --- confirmation ---------------------------------------------------------
 
 @Composable
-private fun ConfirmScreen(c: Confirmation, vm: MainViewModel) {
+fun ConfirmScreen(c: Confirmation, vm: MainViewModel) {
     var editingTranscript by remember { mutableStateOf(false) }
     val count = c.drafts.count { it.include && it.title.isNotBlank() }
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
