@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
         intent.getStringExtra("debug_wav")?.let { vm.recognizeFile(it) }
         // "腾讯|疼讯|藤寻": a term and what it is misheard as.
         intent.getStringExtra("debug_term")?.split('|')?.let { vm.addTerm(Term(it[0], it.drop(1))) }
-        intent.getStringExtra("debug_text")?.let { vm.parseText(it) }
+        intent.getStringExtra("debug_text")?.let { vm.parseTyped(it) }
         intent.getStringExtra("debug_update_url")?.let {
             vm.updater.endpoint = it
             vm.updater.check()

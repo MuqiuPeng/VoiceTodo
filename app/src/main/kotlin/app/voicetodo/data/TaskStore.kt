@@ -20,7 +20,7 @@ import java.time.LocalTime
  * the same list.
  */
 class TaskStore private constructor(context: Context) :
-    SQLiteOpenHelper(context, "tasks.db", null, 1) {
+    SQLiteOpenHelper(context, "tasks.db", null, 2) {
 
     private val _tasks = MutableStateFlow<List<Task>>(emptyList())
     val tasks: StateFlow<List<Task>> = _tasks
@@ -45,13 +45,17 @@ class TaskStore private constructor(context: Context) :
                 created_at TEXT NOT NULL,
                 done INTEGER NOT NULL DEFAULT 0,
                 snooze_until TEXT,
-                last_notified TEXT
+                last_notified TEXT,
+                audio TEXT
             )
             """.trimIndent(),
         )
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        // v2 (app 0.6.0): the recording a task was spoken in.
+        if (oldVersion < 2) db.execSQL("ALTER TABLE tasks ADD COLUMN audio TEXT")
+    }
 
     fun get(id: Long): Task? = readableDatabase
         .query("tasks", null, "id = ?", arrayOf(id.toString()), null, null, null)
@@ -61,6 +65,12 @@ class TaskStore private constructor(context: Context) :
         val id = writableDatabase.insert("tasks", null, task.toValues())
         reload()
         return id
+    }
+
+    /** Puts a deleted task back under its old id, so its alarm and notification ids still match. */
+    fun restore(task: Task) {
+        writableDatabase.insert("tasks", null, task.toValues().apply { put("id", task.id) })
+        reload()
     }
 
     fun update(task: Task) {
@@ -92,6 +102,7 @@ class TaskStore private constructor(context: Context) :
         put("done", if (done) 1 else 0)
         put("snooze_until", snoozeUntil?.toString())
         put("last_notified", lastNotified?.toString())
+        put("audio", audio)
     }
 
     private fun Cursor.str(col: String): String? = getColumnIndexOrThrow(col).let { if (isNull(it)) null else getString(it) }
@@ -110,6 +121,7 @@ class TaskStore private constructor(context: Context) :
         done = getInt(getColumnIndexOrThrow("done")) == 1,
         snoozeUntil = str("snooze_until")?.let(LocalDateTime::parse),
         lastNotified = str("last_notified")?.let(LocalDateTime::parse),
+        audio = str("audio"),
     )
 
     companion object {

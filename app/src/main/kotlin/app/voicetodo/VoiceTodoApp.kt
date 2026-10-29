@@ -1,6 +1,8 @@
 package app.voicetodo
 
 import android.app.Application
+import app.voicetodo.data.Recordings
+import app.voicetodo.data.TaskStore
 import app.voicetodo.reminder.Reminders
 import app.voicetodo.speech.PackState
 import app.voicetodo.speech.SpeechEngine
@@ -29,6 +31,7 @@ class VoiceTodoApp : Application() {
         private set
     lateinit var packs: SpeechPacks
         private set
+    val recordings by lazy { Recordings(this) }
 
     private val _engineState = MutableStateFlow<EngineState>(EngineState.Loading)
     val engineState: StateFlow<EngineState> = _engineState
@@ -40,6 +43,8 @@ class VoiceTodoApp : Application() {
         updater = Updater(this, scope)
         packs = SpeechPacks(this, scope, onInstalled = { loadSpeech() })
         if (packs.state.value == PackState.Installed) loadSpeech() else _engineState.value = EngineState.Missing
+        // A delete whose undo never expired (app killed) leaves its recording behind.
+        scope.launch { recordings.deleteOrphans(TaskStore.get(this@VoiceTodoApp).tasks.value) }
         // Covers alarms lost to a force-stop, which sends no broadcast.
         scope.launch { Reminders.rescheduleAll(this@VoiceTodoApp) }
     }

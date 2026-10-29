@@ -6,7 +6,6 @@ import android.app.TimePickerDialog
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -61,6 +60,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -101,6 +109,13 @@ fun HomeScreen(vm: MainViewModel, menu: @Composable () -> Unit, openSettings: ()
     val today = LocalDate.now()
     val open = tasks.filter { !it.done }
     val done = tasks.filter { it.done }
+    val snackbar = remember { SnackbarHostState() }
+    val deleted by vm.deleted.collectAsState()
+    LaunchedEffect(deleted) {
+        val t = deleted ?: return@LaunchedEffect
+        val r = snackbar.showSnackbar("已删除「${t.title}」", actionLabel = "撤销", duration = SnackbarDuration.Long)
+        if (r == SnackbarResult.ActionPerformed) vm.undoDelete(t) else vm.finishDelete(t)
+    }
 
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
         Row(
@@ -134,6 +149,7 @@ fun HomeScreen(vm: MainViewModel, menu: @Composable () -> Unit, openSettings: ()
                 items(done, key = { it.id }) { TaskRow(it, today, vm) }
             }
         }
+        SnackbarHost(snackbar)
         InputBar(vm, openSettings)
     }
 }
@@ -256,44 +272,92 @@ fun VocabularyScreen(vm: MainViewModel, onBack: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+/**
+ * Swipe left to complete (or, in 已完成, to bring back), swipe right to
+ * delete; the deletion can be undone from the snackbar. A task that was
+ * spoken has its recording on a play button.
+ */
 @Composable
 private fun TaskRow(task: Task, today: LocalDate, vm: MainViewModel) {
-    var confirmDelete by remember { mutableStateOf(false) }
     val due = describeDue(task.dueDate, task.dueTime, task.dueKind, today)
     val overdue = !task.done && task.dueAt?.let { it < LocalDateTime.now() } == true
-    Card(Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = task.done, onCheckedChange = { vm.setDone(task, it) })
-            Column(Modifier.weight(1f).padding(vertical = 4.dp)) {
-                Text(
-                    task.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    textDecoration = if (task.done) TextDecoration.LineThrough else null,
-                    color = if (task.done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                )
-                if (due != null) {
-                    Text(
-                        (if (overdue) "已到期 · " else "") + due,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (overdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+    val playing by vm.recordings.playing.collectAsState()
+    val shape = RoundedCornerShape(12.dp)
+    val restores by vm.restores.collectAsState()
+    // Keyed so a row that moved between sections, or came back from an undo, starts unswiped.
+    key(task.done, restores) {
+        val state = rememberSwipeToDismissBoxState()
+        SwipeToDismissBox(
+            state = state,
+            backgroundContent = {
+                val deleting = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
+                val completing = state.dismissDirection == SwipeToDismissBoxValue.EndToStart
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .clip(shape)
+                        .background(
+                            when {
+                                deleting -> MaterialTheme.colorScheme.error
+                                completing -> MaterialTheme.colorScheme.primary
+                                else -> Color.Transparent
+                            },
+                        )
+                        .padding(horizontal = 24.dp),
+                    contentAlignment = if (deleting) Alignment.CenterStart else Alignment.CenterEnd,
+                ) {
+                    if (deleting || completing) {
+                        Text(
+                            when {
+                                deleting -> "删除"
+                                task.done -> "恢复"
+                                else -> "完成"
+                            },
+                            color = if (deleting) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
                 }
-                task.detail?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            },
+            onDismiss = { direction ->
+                when (direction) {
+                    SwipeToDismissBoxValue.StartToEnd -> vm.delete(task)
+                    SwipeToDismissBoxValue.EndToStart -> vm.setDone(task, !task.done)
+                    SwipeToDismissBoxValue.Settled -> Unit
+                }
+            },
+        ) {
+            Card(Modifier.fillMaxWidth(), shape = shape) {
+                Row(
+                    Modifier.padding(start = 16.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            task.title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            textDecoration = if (task.done) TextDecoration.LineThrough else null,
+                            color = if (task.done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                        )
+                        if (due != null) {
+                            Text(
+                                (if (overdue) "已到期 · " else "") + due,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (overdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        task.detail?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    task.audio?.let { audio ->
+                        TextButton(onClick = { vm.recordings.toggle(audio) }) {
+                            Text(if (playing == audio) "■ 停止" else "▶ " + vm.recordings.seconds(audio).let { "%d:%02d".format(it / 60, it % 60) })
+                        }
+                    }
                 }
             }
-            TextButton(onClick = { confirmDelete = true }) { Text("删除") }
         }
-    }
-    if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text("删除这条任务？") },
-            text = { Text(task.title) },
-            confirmButton = { TextButton(onClick = { confirmDelete = false; vm.delete(task) }) { Text("删除") } },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
-        )
     }
 }
 
@@ -326,7 +390,7 @@ private fun InputBar(vm: MainViewModel, openSettings: () -> Unit) {
 
     fun submit() {
         if (text.isBlank()) return
-        vm.parseText(text.trim())
+        vm.parseTyped(text.trim())
         text = ""
         focusManager.clearFocus()
     }

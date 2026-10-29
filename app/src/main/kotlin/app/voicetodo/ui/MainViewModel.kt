@@ -82,6 +82,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteSpeechPack() = voiceApp.deleteSpeechPack()
 
+    val recordings = voiceApp.recordings
+
+    /** The audio of the utterance on the confirmation card, saved with its tasks on 保存. */
+    private var pendingAudio: FloatArray? = null
+
     private val _capture = MutableStateFlow<Capture>(Capture.Idle)
     val capture: StateFlow<Capture> = _capture
 
@@ -128,6 +133,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun recognize(samples: FloatArray) {
         _capture.value = Capture.Recognizing
+        pendingAudio = samples
         viewModelScope.launch {
             try {
                 val text = voiceApp.speech.transcribe(samples)
@@ -174,6 +180,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _confirmation.value = Confirmation(text, drafts, heard, corrected?.corrections ?: emptyList(), cleaned)
     }
 
+    /** Typed input has no recording to keep. */
+    fun parseTyped(text: String) {
+        pendingAudio = null
+        parseText(text)
+    }
+
     fun undoCorrections() {
         _confirmation.value?.let { parseText(it.heard, correct = false) }
     }
@@ -189,6 +201,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissConfirmation() {
+        pendingAudio = null
         _confirmation.value = null
     }
 
@@ -199,7 +212,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun saveConfirmation() {
         val c = _confirmation.value ?: return
         val ctx = getApplication<Application>()
-        for (d in c.drafts.filter { it.include && it.title.isNotBlank() }) {
+        val saving = c.drafts.filter { it.include && it.title.isNotBlank() }
+        // One file for the whole utterance, shared by every task it became.
+        val audio = pendingAudio?.takeIf { saving.isNotEmpty() }?.let { recordings.save(it, SpeechEngine.SAMPLE_RATE) }
+        pendingAudio = null
+        for (d in saving) {
             val task = Task(
                 title = d.title.trim(),
                 detail = d.detail,
@@ -209,6 +226,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 remindAt = d.remindAt,
                 remindBefore = d.remindBefore,
                 source = c.transcript,
+                audio = audio,
             )
             val id = store.insert(task)
             Reminders.schedule(ctx, task.copy(id = id))
@@ -236,8 +254,57 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (done) Reminders.cancel(ctx, task.id) else Reminders.schedule(ctx, updated)
     }
 
+    // --- deleting, with undo ---------------------------------------------
+
+    private val _deleted = MutableStateFlow<Task?>(null)
+
+    /** The last task swiped away, while its undo is still on offer. */
+    val deleted: StateFlow<Task?> = _deleted
+
     fun delete(task: Task) {
+        _deleted.value?.let(::finishDelete)
+        recordings.stop()
         Reminders.cancel(getApplication(), task.id)
         store.delete(task.id)
+        _deleted.value = task
+    }
+
+    private val _restores = MutableStateFlow(0)
+
+    /**
+     * Bumped on every undo. A restored task comes back under its old id, and
+     * the list would hand it its old swipe state — already swiped away, which
+     * deletes it again. Rows key their swipe state on this to start fresh.
+     */
+    val restores: StateFlow<Int> = _restores
+
+    fun undoDelete(task: Task) {
+        if (_deleted.value?.id != task.id) return
+        _deleted.value = null
+        _restores.value++
+        store.restore(task)
+        if (!task.done) Reminders.schedule(getApplication(), task)
+    }
+
+    /** The undo has expired: now the recording can go, unless another task shares it. */
+    fun finishDelete(task: Task) {
+        if (_deleted.value?.id == task.id) _deleted.value = null
+        task.audio?.let { recordings.deleteUnreferenced(listOf(it), store.tasks.value) }
+    }
+
+    // --- recordings ------------------------------------------------------
+
+    /** Recordings only completed tasks still use: what 删除已完成任务的录音 would free. */
+    fun doneRecordings(tasks: List<Task>): List<String> {
+        val open = tasks.filter { !it.done }.mapNotNull { it.audio }.toSet()
+        return tasks.filter { it.done }.mapNotNull { it.audio }.distinct().filter { it !in open }
+    }
+
+    fun deleteDoneRecordings() {
+        recordings.stop()
+        val all = store.tasks.value
+        val names = doneRecordings(all).toSet()
+        all.filter { it.done && it.audio in names }.forEach { store.update(it.copy(audio = null)) }
+        recordings.deleteUnreferenced(names, store.tasks.value)
     }
 }

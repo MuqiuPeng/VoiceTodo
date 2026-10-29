@@ -242,6 +242,9 @@ private fun SettingsScreen(
                 }
             }
 
+            item { SectionTitle("录音") }
+            item { RecordingsCard(vm) }
+
             item { SectionTitle("更新") }
             item {
                 Card(Modifier.fillMaxWidth()) {
@@ -322,6 +325,36 @@ private fun PackCard(vm: MainViewModel, state: PackState) {
     }
 }
 
+@Composable
+private fun RecordingsCard(vm: MainViewModel) {
+    val tasks by vm.tasks.collectAsState()
+    val names = vm.doneRecordings(tasks)
+    val bytes = names.sumOf { vm.recordings.file(it).length() }
+    var confirm by remember { mutableStateOf(false) }
+    Card(Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("已完成任务的录音")
+                Text(
+                    "${names.size} 条 · ${"%.1f".format(bytes / 1_048_576.0)} MB",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            TextButton(enabled = names.isNotEmpty(), onClick = { confirm = true }) { Text("全部删除") }
+        }
+    }
+    if (confirm) {
+        AlertDialog(
+            onDismissRequest = { confirm = false },
+            title = { Text("删除已完成任务的录音？") },
+            text = { Text("共 ${names.size} 条，任务本身保留。") },
+            confirmButton = { TextButton(onClick = { confirm = false; vm.deleteDoneRecordings() }) { Text("删除") } },
+            dismissButton = { TextButton(onClick = { confirm = false }) { Text("取消") } },
+        )
+    }
+}
+
 /** `granted` null: a setting the app cannot read (自启动), so it only offers the way there. */
 @Composable
 private fun PermissionRow(label: String, granted: Boolean?, onClick: () -> Unit) {
@@ -353,6 +386,12 @@ private val HELP = listOf(
         "点一下底部输入框：打字，点「发送」。",
         "长按输入框：说话，松开识别；按住时上滑取消。",
         "语音需要先在「设置 → 语音包」下载，识别全程在手机上完成，不联网。",
+    ),
+    "任务" to listOf(
+        "向左滑：完成；在「已完成」里向左滑：恢复。",
+        "向右滑：删除，底部会出现「撤销」。",
+        "说出来的任务会保留录音，点 ▶ 播放；一句话拆成几条任务时共用一段录音。",
+        "「设置 → 录音」可以一次删除所有已完成任务的录音，任务本身保留。",
     ),
     "时间怎么说" to listOf(
         "日期：明天、后天、周五、下周三、11月5号、月底、国庆前、三天后、两周内。",

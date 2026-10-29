@@ -23,6 +23,8 @@ data class Task(
     val snoozeUntil: LocalDateTime? = null,
     /** The last reminder shown, so a reschedule never repeats one. */
     val lastNotified: LocalDateTime? = null,
+    /** File name of the recording it was spoken in, under [Recordings]; null if typed. */
+    val audio: String? = null,
 ) {
     val dueAt: LocalDateTime? get() = dueDate?.atTime(dueTime ?: LocalTime.of(23, 59))
 }
