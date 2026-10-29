@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- One cell wide: just the icon on the wallpaper. Tap it to talk. -->
+<!-- One cell wide: just the icon on the wallpaper, as large as the cell allows
+     without cropping (cells differ between launchers). Tap it to talk. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_cell"
     android:layout_width="match_parent"
@@ -7,9 +8,9 @@
 
     <ImageView
         android:id="@+id/widget_icon"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
-        android:layout_gravity="center"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="4dp"
         android:contentDescription="@string/input_hint"
         android:scaleType="fitCenter"
         android:src="@drawable/widget_mark_dark" />
