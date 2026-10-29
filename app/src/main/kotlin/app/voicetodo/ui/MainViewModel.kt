@@ -24,6 +24,7 @@ import app.voicetodo.parser.TaskParser
 import app.voicetodo.parser.Warning
 import app.voicetodo.reminder.Reminders
 import app.voicetodo.speech.Recorder
+import app.voicetodo.speech.SpeechPack
 import app.voicetodo.speech.SpeechEngine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -86,7 +87,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val updater = voiceApp.updater
     val packs = voiceApp.packs
 
-    fun deleteSpeechPack() = voiceApp.deleteSpeechPack()
+    fun deleteSpeechPack(pack: SpeechPack) = voiceApp.deleteSpeechPack(pack)
 
     private fun text(id: Int, vararg args: Any) = getApplication<Application>().localized().getString(id, *args)
 
@@ -119,6 +120,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // Under half a second is a tap, not speech.
         if (samples.size < SpeechEngine.SAMPLE_RATE / 2) {
             _capture.value = Capture.Failed(text(R.string.hold_longer))
+            return
+        }
+        // Silence is a microphone problem, not something to recognize: say so,
+        // rather than "didn't catch that", which sounds like the model's fault.
+        if (recorder.peak < 0.01f) {
+            _capture.value = Capture.Failed(text(R.string.no_sound))
             return
         }
         recognize(samples)

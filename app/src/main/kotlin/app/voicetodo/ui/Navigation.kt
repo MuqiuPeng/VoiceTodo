@@ -37,10 +37,10 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.FilterChip
@@ -48,9 +48,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -74,6 +74,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.voicetodo.R
 import app.voicetodo.VoiceTodoApp.EngineState
 import app.voicetodo.speech.PackState
+import app.voicetodo.speech.SpeechPack
 import app.voicetodo.update.UpdateState
 import app.voicetodo.update.Updater
 import kotlinx.coroutines.launch
@@ -223,7 +224,8 @@ private fun SettingsScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
-    val packState by vm.packs.state.collectAsState()
+    val packStates by vm.packs.states.collectAsState()
+    val activePack by vm.packs.active.collectAsState()
     val update by vm.updater.state.collectAsState()
     val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refreshSetup() }
 
@@ -235,7 +237,16 @@ private fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             item { SectionTitle(stringResource(R.string.section_speech)) }
-            item { PackCard(vm, packState) }
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column {
+                        vm.packs.all.forEachIndexed { i, p ->
+                            if (i > 0) HorizontalDivider()
+                            PackRow(vm, p, packStates[p.id] ?: PackState.NotInstalled, active = activePack == p, recommended = i == 0)
+                        }
+                    }
+                }
+            }
 
             item { SectionTitle(stringResource(R.string.section_permissions)) }
             item {
@@ -285,45 +296,66 @@ private fun SettingsScreen(
     }
 }
 
+/**
+ * One speech pack: a radio button to use it once installed, and one action
+ * icon — download, pause, resume, or delete.
+ */
 @Composable
-private fun PackCard(vm: MainViewModel, state: PackState) {
-    val pack = vm.packs.pack
+private fun PackRow(vm: MainViewModel, pack: SpeechPack, state: PackState, active: Boolean, recommended: Boolean) {
     var confirmDelete by remember { mutableStateOf(false) }
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
+    val installed = state == PackState.Installed
+    Column(Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = 6.dp, bottom = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = active, enabled = installed, onClick = { vm.packs.select(pack) })
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(pack.name, style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        stringResource(pack.languages) + " · " + mb(pack.size),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    if (recommended) {
+                        Icon(
+                            Icons.Filled.Star, stringResource(R.string.pack_recommended),
+                            Modifier.padding(start = 6.dp).size(16.dp), tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
-                when (state) {
-                    PackState.NotInstalled -> Button(onClick = vm.packs::download) { Text(stringResource(R.string.download)) }
-                    is PackState.Downloading -> OutlinedButton(onClick = vm.packs::pause) { Text(stringResource(R.string.pause)) }
-                    is PackState.Paused -> Button(onClick = vm.packs::download) { Text(stringResource(R.string.resume)) }
-                    is PackState.Failed -> Button(onClick = vm.packs::download) { Text(stringResource(R.string.retry)) }
-                    PackState.Installed -> IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Filled.Delete, stringResource(R.string.delete)) }
-                }
+                Text(
+                    stringResource(pack.description) + " · " + mb(pack.size),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             when (state) {
-                is PackState.Downloading, is PackState.Paused -> {
-                    val (done, total) = when (state) {
-                        is PackState.Downloading -> state.done to state.total
-                        is PackState.Paused -> state.done to state.total
-                        else -> 0L to 1L
-                    }
-                    LinearProgressIndicator(progress = { done.toFloat() / total }, modifier = Modifier.fillMaxWidth())
-                    Text("${mb(done)} / ${mb(total)}", style = MaterialTheme.typography.bodySmall)
-                    if (state is PackState.Downloading && vm.updater.isMetered) {
-                        Text(stringResource(R.string.using_mobile_data), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                    }
+                PackState.NotInstalled, is PackState.Failed -> IconButton(onClick = { vm.packs.download(pack) }) {
+                    Icon(Glyphs.Download, stringResource(R.string.download), tint = MaterialTheme.colorScheme.primary)
                 }
-                is PackState.Failed -> Text(state.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                PackState.Installed, PackState.NotInstalled -> Unit
+                is PackState.Downloading -> IconButton(onClick = { vm.packs.pause(pack) }) { Icon(Glyphs.Pause, stringResource(R.string.pause)) }
+                is PackState.Paused -> IconButton(onClick = { vm.packs.download(pack) }) {
+                    Icon(Glyphs.Download, stringResource(R.string.resume), tint = MaterialTheme.colorScheme.primary)
+                }
+                PackState.Installed -> IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Filled.Delete, stringResource(R.string.delete)) }
             }
+        }
+        when (state) {
+            is PackState.Downloading, is PackState.Paused -> {
+                val (done, total) = when (state) {
+                    is PackState.Downloading -> state.done to state.total
+                    is PackState.Paused -> state.done to state.total
+                    else -> 0L to 1L
+                }
+                LinearProgressIndicator(
+                    progress = { done.toFloat() / total },
+                    modifier = Modifier.fillMaxWidth().padding(start = 48.dp, end = 12.dp, top = 4.dp),
+                )
+                Text(
+                    "${mb(done)} / ${mb(total)}" + if (state is PackState.Downloading && vm.updater.isMetered) " · " + stringResource(R.string.using_mobile_data) else "",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(start = 48.dp, top = 2.dp),
+                )
+            }
+            is PackState.Failed -> Text(
+                state.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(start = 48.dp),
+            )
+            else -> Unit
         }
     }
     if (confirmDelete) {
@@ -331,7 +363,7 @@ private fun PackCard(vm: MainViewModel, state: PackState) {
             onDismissRequest = { confirmDelete = false },
             title = { Text(stringResource(R.string.delete_pack_title)) },
             text = { Text(stringResource(R.string.delete_pack_text, mb(pack.size))) },
-            confirmButton = { TextButton(onClick = { confirmDelete = false; vm.deleteSpeechPack() }) { Text(stringResource(R.string.delete)) } },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; vm.deleteSpeechPack(pack) }) { Text(stringResource(R.string.delete)) } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }

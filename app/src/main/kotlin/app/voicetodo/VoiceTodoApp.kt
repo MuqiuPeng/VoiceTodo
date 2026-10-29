@@ -4,7 +4,7 @@ import android.app.Application
 import app.voicetodo.data.Recordings
 import app.voicetodo.data.TaskStore
 import app.voicetodo.reminder.Reminders
-import app.voicetodo.speech.PackState
+import app.voicetodo.speech.SpeechPack
 import app.voicetodo.speech.SpeechEngine
 import app.voicetodo.speech.SpeechPacks
 import app.voicetodo.update.Updater
@@ -41,19 +41,24 @@ class VoiceTodoApp : Application() {
         Reminders.createChannel(this)
         speech = SpeechEngine()
         updater = Updater(this, scope)
-        packs = SpeechPacks(this, scope, onInstalled = { loadSpeech() })
-        if (packs.state.value == PackState.Installed) loadSpeech() else _engineState.value = EngineState.Missing
+        packs = SpeechPacks(this, scope, onActiveChanged = ::loadSpeech)
+        loadSpeech(packs.active.value)
         // A delete whose undo never expired (app killed) leaves its recording behind.
         scope.launch { recordings.deleteOrphans(TaskStore.get(this@VoiceTodoApp).tasks.value) }
         // Covers alarms lost to a force-stop, which sends no broadcast.
         scope.launch { Reminders.rescheduleAll(this@VoiceTodoApp) }
     }
 
-    private fun loadSpeech() {
+    private fun loadSpeech(pack: SpeechPack?) {
+        if (pack == null) {
+            speech.unload()
+            _engineState.value = EngineState.Missing
+            return
+        }
         _engineState.value = EngineState.Loading
         scope.launch {
             _engineState.value = try {
-                speech.load(packs.dir(packs.pack))
+                speech.load(pack, packs.dir(pack))
                 EngineState.Ready
             } catch (e: Throwable) {
                 EngineState.Failed(e.message ?: e.javaClass.simpleName)
@@ -61,8 +66,5 @@ class VoiceTodoApp : Application() {
         }
     }
 
-    fun deleteSpeechPack() {
-        packs.delete(beforeDelete = { speech.unload() })
-        _engineState.value = EngineState.Missing
-    }
+    fun deleteSpeechPack(pack: SpeechPack) = packs.delete(pack, release = { speech.unload() })
 }

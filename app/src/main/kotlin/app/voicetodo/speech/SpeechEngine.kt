@@ -9,6 +9,7 @@ import com.k2fsa.sherpa.onnx.OfflineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizer
 import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
 import com.k2fsa.sherpa.onnx.OfflineSenseVoiceModelConfig
+import com.k2fsa.sherpa.onnx.OfflineTransducerModelConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,12 +19,11 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 /**
- * On-device speech recognition: SenseVoice (int8) through sherpa-onnx, from
- * a speech pack the user downloaded (see [SpeechPacks]). Nothing leaves the
- * phone.
+ * On-device speech recognition through sherpa-onnx, from the speech pack the
+ * user chose (see [SpeechPacks]). Nothing leaves the phone.
  *
  * Loading the model takes a few seconds, so it happens off the main thread,
- * at startup or right after the pack finishes downloading.
+ * at startup, after a download, or when the user switches packs.
  */
 class SpeechEngine {
     @Volatile
@@ -31,13 +31,13 @@ class SpeechEngine {
 
     val isReady: Boolean get() = recognizer != null
 
-    suspend fun load(dir: File) = withContext(Dispatchers.Default) {
+    suspend fun load(pack: SpeechPack, dir: File) = withContext(Dispatchers.Default) {
         unload()
-        val config = OfflineRecognizerConfig(
-            featConfig = FeatureConfig(sampleRate = SAMPLE_RATE, featureDim = 80),
-            modelConfig = OfflineModelConfig(
+        fun f(name: String) = File(dir, name).absolutePath
+        val model = when (pack.kind) {
+            PackKind.SENSE_VOICE -> OfflineModelConfig(
                 senseVoice = OfflineSenseVoiceModelConfig(
-                    model = File(dir, "model.int8.onnx").absolutePath,
+                    model = f("model.int8.onnx"),
                     // Detected per utterance, so Chinese, English and Chinese
                     // with English words in it all come through.
                     language = "auto",
@@ -45,11 +45,23 @@ class SpeechEngine {
                     // task parser's clause splitting relies on.
                     useInverseTextNormalization = true,
                 ),
-                tokens = File(dir, "tokens.txt").absolutePath,
-                numThreads = 2,
-            ),
+            )
+            PackKind.TRANSDUCER -> OfflineModelConfig(
+                transducer = OfflineTransducerModelConfig(
+                    encoder = f("encoder.int8.onnx"),
+                    decoder = f("decoder.onnx"),
+                    joiner = f("joiner.int8.onnx"),
+                ),
+                modelType = "transducer",
+            )
+        }.apply {
+            tokens = f("tokens.txt")
+            numThreads = 2
+        }
+        recognizer = OfflineRecognizer(
+            null,
+            OfflineRecognizerConfig(featConfig = FeatureConfig(sampleRate = SAMPLE_RATE, featureDim = 80), modelConfig = model),
         )
-        recognizer = OfflineRecognizer(null, config)
     }
 
     fun unload() {
@@ -112,11 +124,17 @@ class Recorder {
         val minBuf = AudioRecord.getMinBufferSize(
             SpeechEngine.SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT,
         )
-        val record = AudioRecord(
-            MediaRecorder.AudioSource.VOICE_RECOGNITION,
-            SpeechEngine.SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT,
+        fun open(source: Int) = AudioRecord(
+            source, SpeechEngine.SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT,
             maxOf(minBuf, SpeechEngine.SAMPLE_RATE),
         )
+        // VOICE_RECOGNITION skips the call-oriented processing that hurts
+        // recognition, but not every phone provides it; plain MIC always works.
+        var record = open(MediaRecorder.AudioSource.VOICE_RECOGNITION)
+        if (record.state != AudioRecord.STATE_INITIALIZED) {
+            record.release()
+            record = open(MediaRecorder.AudioSource.MIC)
+        }
         synchronized(chunks) { chunks.clear() }
         recording = true
         record.startRecording()
@@ -137,6 +155,11 @@ class Recorder {
         }.also { it.start() }
     }
 
+    /** Loudest sample of the last recording, 0..1: near zero means the mic gave silence. */
+    @Volatile
+    var peak = 0f
+        private set
+
     fun stop(): FloatArray {
         recording = false
         thread?.join(1000)
@@ -145,7 +168,12 @@ class Recorder {
         val all = synchronized(chunks) { chunks.toList() }
         val out = FloatArray(all.sumOf { it.size })
         var i = 0
-        for (c in all) for (s in c) out[i++] = s / 32768f
+        var max = 0
+        for (c in all) for (s in c) {
+            out[i++] = s / 32768f
+            max = maxOf(max, kotlin.math.abs(s.toInt()))
+        }
+        peak = max / 32768f
         return out
     }
 }

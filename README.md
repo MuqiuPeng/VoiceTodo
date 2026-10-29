@@ -82,10 +82,23 @@ The speech runtime (sherpa-onnx 1.13.8 AAR) is not in git:
 ./scripts/fetch-deps.sh
 ```
 
-The speech model is not part of the APK. It is published as a speech pack:
-assets of the `speech-sensevoice-2025-09-09` pre-release (a pre-release, so
-the updater's `releases/latest` never sees it), with size and SHA-256 pinned
-in `SpeechPacks.kt`.
+The speech model is not part of the APK. Three speech packs are offered in
+Settings, each published as assets of its own `speech-*` pre-release (a
+pre-release, so the updater's `releases/latest` never sees it), with sizes and
+SHA-256 pinned in `SpeechPacks.kt`:
+
+| Pack | Size | Notes |
+|---|---|---|
+| FunASR Nano (Fun-ASR-Nano-2512, int8) | 252 MB | Recommended. Best on Chinese with English mixed in; English in normal case |
+| SenseVoice (2025-09-09, int8) | 226 MB | Good Chinese; English words often misheard, English in capitals |
+| Zipformer zh-en (2023-11-22, int8) | 72 MB | Smallest and fastest; weakest on mixed speech |
+
+Chosen by running candidates over the same synthesized clips on the device's
+own sherpa-onnx runtime (`DebugBenchReceiver`, debug builds only). On mixed
+sentences ("下周一要交essay", "帮我book一个meeting room", "周三有个interview")
+FunASR Nano got all of them right where SenseVoice and Zipformer missed the
+English words. Paraformer zh (2025-10) and the WeNet zh-en-yue model were
+also tried and spelled English out letter by letter.
 
 Then, with the Android SDK at `~/Library/Android/sdk` (see `local.properties`):
 

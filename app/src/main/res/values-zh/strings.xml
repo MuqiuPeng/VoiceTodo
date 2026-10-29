@@ -171,4 +171,9 @@
         <item>每天打开时自动检查一次，也可以在「设置 → 更新」手动检查。</item>
         <item>联网只用于检查更新和下载语音包。</item>
     </string-array>
+    <string name="pack_funasr_desc">中英混说 · 口音方言</string>
+    <string name="pack_zipformer_desc">中文 · 英文 · 小巧快速</string>
+    <string name="pack_recommended">推荐</string>
+    <string name="pack_in_use">使用中</string>
+    <string name="no_sound">没录到声音，请检查麦克风权限后再试</string>
 </resources>

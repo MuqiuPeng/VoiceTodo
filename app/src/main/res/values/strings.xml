@@ -172,4 +172,9 @@
         <item>The app checks for updates once a day, or from Settings → Updates.</item>
         <item>The network is only used to check for updates and download the speech pack.</item>
     </string-array>
+    <string name="pack_funasr_desc">Chinese-English mixed speech · accents</string>
+    <string name="pack_zipformer_desc">Chinese · English · small and fast</string>
+    <string name="pack_recommended">Recommended</string>
+    <string name="pack_in_use">In use</string>
+    <string name="no_sound">No sound was recorded. Check the microphone permission or try again.</string>
 </resources>

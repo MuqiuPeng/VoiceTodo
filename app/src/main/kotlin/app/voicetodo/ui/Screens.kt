@@ -411,7 +411,7 @@ private fun TaskRow(task: Task, today: LocalDate, vm: MainViewModel) {
                     task.audio?.let { audio ->
                         TextButton(onClick = { vm.recordings.toggle(audio) }) {
                             if (playing == audio) {
-                                Box(Modifier.size(14.dp).background(MaterialTheme.colorScheme.primary))
+                                Icon(Glyphs.Stop, null, Modifier.size(20.dp))
                             } else {
                                 Icon(Icons.Filled.PlayArrow, null, Modifier.size(20.dp))
                                 Text(vm.recordings.seconds(audio).let { "%d:%02d".format(it / 60, it % 60) })

@@ -4,5 +4,9 @@
     xmlns:tools="http://schemas.android.com/tools">
     <application
         android:networkSecurityConfig="@xml/network_security_config"
-        tools:ignore="UnusedAttribute" />
+        tools:ignore="UnusedAttribute">
+        <receiver
+            android:name=".DebugBenchReceiver"
+            android:exported="true" />
+    </application>
 </manifest>
