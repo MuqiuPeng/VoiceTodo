@@ -108,6 +108,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         recognize(samples)
     }
 
+    /** Slid away while holding: the recording is thrown away unheard. */
+    fun cancelRecording() {
+        if (_capture.value != Capture.Recording) return
+        recorder.stop()
+        _capture.value = Capture.Idle
+    }
+
+    val level: StateFlow<Float> = recorder.level
+
     /** Debug builds only: feed a WAV instead of the microphone (the emulator has no voice). */
     fun recognizeFile(path: String) = viewModelScope.launch {
         voiceApp.engineState.first { it != VoiceTodoApp.EngineState.Loading }

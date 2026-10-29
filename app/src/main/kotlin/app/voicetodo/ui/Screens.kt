@@ -9,8 +9,26 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -62,7 +80,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.voicetodo.VoiceTodoApp.EngineState
@@ -117,7 +134,6 @@ private fun HomeScreen(
     val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         setupState = setup()
     }
-    var typing by remember { mutableStateOf(false) }
     val update by vm.updater.state.collectAsState()
     val today = LocalDate.now()
     val open = tasks.filter { !it.done }
@@ -164,7 +180,7 @@ private fun HomeScreen(
             if (open.isEmpty() && done.isEmpty()) {
                 item {
                     Text(
-                        "按住下面的按钮，说出要做的事和时间，比如：\n“周五下午三点前把报告发给老王，提前一小时提醒我”",
+                        "长按下面的输入框说话，或点一下直接打字，比如：\n“周五下午三点前把报告发给老王，提前一小时提醒我”",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(vertical = 32.dp, horizontal = 8.dp),
                     )
@@ -183,15 +199,7 @@ private fun HomeScreen(
                 items(done, key = { it.id }) { TaskRow(it, today, vm) }
             }
         }
-        MicBar(vm, onType = { typing = true })
-    }
-
-    if (typing) {
-        TextInputDialog(
-            initial = "",
-            onDismiss = { typing = false },
-            onSubmit = { typing = false; vm.parseText(it) },
-        )
+        InputBar(vm)
     }
 }
 
@@ -401,68 +409,179 @@ private fun TaskRow(task: Task, today: LocalDate, vm: MainViewModel) {
     }
 }
 
+/**
+ * One field for both ways in: a tap puts the cursor in it to type, a long
+ * press records until release (slide up to throw the recording away).
+ * While the field has focus it is an ordinary text field, so long-press
+ * selection still works when editing.
+ */
 @Composable
-private fun MicBar(vm: MainViewModel, onType: () -> Unit) {
+private fun InputBar(vm: MainViewModel) {
     val context = LocalContext.current
     val engine by vm.engineState.collectAsState()
     val capture by vm.capture.collectAsState()
+    val level by vm.level.collectAsState()
+    var text by rememberSaveable { mutableStateOf("") }
+    var focused by remember { mutableStateOf(false) }
+    var cancelArmed by remember { mutableStateOf(false) }
+    var hint by remember { mutableStateOf<String?>(null) }
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val haptics = LocalHapticFeedback.current
     var micGranted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
     }
     val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { micGranted = it }
     val ready = engine == EngineState.Ready
+    val recording = capture == Capture.Recording
+
+    fun submit() {
+        if (text.isBlank()) return
+        vm.parseText(text.trim())
+        text = ""
+        focusManager.clearFocus()
+    }
+
+    val status = when {
+        recording && cancelArmed -> "松开手指，取消这次录音"
+        recording -> "正在听…松开结束，上滑取消"
+        capture == Capture.Recognizing -> "识别中…"
+        capture is Capture.Failed -> (capture as Capture.Failed).message
+        engine is EngineState.Failed -> "语音模型加载失败：${(engine as EngineState.Failed).message}"
+        else -> hint
+    }
 
     Surface(tonalElevation = 3.dp) {
-        Column(
-            Modifier.fillMaxWidth().padding(vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            val status = when {
-                engine == EngineState.Loading -> "正在加载语音模型…"
-                engine is EngineState.Failed -> "语音模型加载失败：${(engine as EngineState.Failed).message}"
-                capture == Capture.Recording -> "正在听…松开结束"
-                capture == Capture.Recognizing -> "识别中…"
-                capture is Capture.Failed -> (capture as Capture.Failed).message
-                else -> "按住说话"
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
+            if (status != null) {
+                Text(
+                    status,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (capture is Capture.Failed || cancelArmed) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 8.dp, bottom = 6.dp),
+                )
             }
-            Text(status, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Spacer(Modifier.width(72.dp))
-                val recording = capture == Capture.Recording
+                val fieldColor by animateColorAsState(
+                    when {
+                        recording && cancelArmed -> MaterialTheme.colorScheme.errorContainer
+                        recording -> MaterialTheme.colorScheme.primaryContainer
+                        else -> MaterialTheme.colorScheme.surfaceVariant
+                    },
+                    label = "field",
+                )
                 Box(
                     Modifier
-                        .size(if (recording) 96.dp else 84.dp)
-                        .clip(CircleShape)
-                        .background(
-                            when {
-                                !ready -> MaterialTheme.colorScheme.surfaceVariant
-                                recording -> MaterialTheme.colorScheme.error
-                                else -> MaterialTheme.colorScheme.primary
+                        .weight(1f)
+                        .heightIn(min = 52.dp)
+                        .clip(RoundedCornerShape(26.dp))
+                        .background(fieldColor),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    if (recording) {
+                        // Bars that follow the voice: proof the phone is hearing something.
+                        Row(
+                            Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 20.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            val shape = listOf(0.5f, 0.8f, 1f, 0.7f, 0.9f, 0.6f, 1f, 0.75f, 0.55f)
+                            shape.forEach { k ->
+                                Box(
+                                    Modifier
+                                        .width(4.dp)
+                                        .height((6 + 30 * level * k).dp)
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(if (cancelArmed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary),
+                                )
+                            }
+                        }
+                    } else {
+                        BasicTextField(
+                            value = text,
+                            onValueChange = { text = it },
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                            keyboardActions = KeyboardActions(onSend = { submit() }),
+                            maxLines = 4,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 14.dp)
+                                .focusRequester(focusRequester)
+                                .onFocusChanged { focused = it.isFocused },
+                            decorationBox = { inner ->
+                                if (text.isEmpty()) {
+                                    Text(
+                                        if (capture == Capture.Recognizing) "识别中…" else "输入任务，或长按说话",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                inner()
                             },
                         )
-                        .pointerInput(ready, micGranted) {
-                            detectTapGestures(onPress = {
-                                if (!ready) return@detectTapGestures
-                                if (!micGranted) {
-                                    micLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                    return@detectTapGestures
-                                }
-                                vm.dismissError()
-                                vm.startRecording()
-                                tryAwaitRelease()
-                                vm.stopRecording()
-                            })
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (capture == Capture.Recognizing || engine == EngineState.Loading) {
-                        CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(32.dp))
-                    } else {
-                        Text("🎙", fontSize = 34.sp)
+                    }
+                    if (!focused) {
+                        // Over the idle field: decide between tap (type) and hold (talk).
+                        Box(
+                            Modifier
+                                .matchParentSize()
+                                .pointerInput(ready, micGranted) {
+                                    awaitEachGesture {
+                                        val down = awaitFirstDown()
+                                        val tapped = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                                            waitForUpOrCancellation()
+                                            true
+                                        }
+                                        if (tapped != null) {
+                                            hint = null
+                                            vm.dismissError()
+                                            focusRequester.requestFocus()
+                                            keyboard?.show()
+                                            return@awaitEachGesture
+                                        }
+                                        when {
+                                            !ready -> hint = "语音模型还在加载，请稍等几秒"
+                                            !micGranted -> micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                            else -> {
+                                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                hint = null
+                                                vm.dismissError()
+                                                vm.startRecording()
+                                                val cancelDistance = 80.dp.toPx()
+                                                do {
+                                                    val change = awaitPointerEvent().changes.first()
+                                                    cancelArmed = down.position.y - change.position.y > cancelDistance
+                                                    change.consume()
+                                                } while (change.pressed)
+                                                if (cancelArmed) vm.cancelRecording() else vm.stopRecording()
+                                                cancelArmed = false
+                                                return@awaitEachGesture
+                                            }
+                                        }
+                                        // Not recording: still swallow the rest of the press.
+                                        do {
+                                            val change = awaitPointerEvent().changes.first()
+                                        } while (change.pressed)
+                                    }
+                                },
+                        )
                     }
                 }
-                TextButton(onClick = onType, modifier = Modifier.width(72.dp)) { Text("打字") }
+                if (capture == Capture.Recognizing || (engine == EngineState.Loading && !focused && text.isEmpty())) {
+                    Spacer(Modifier.width(12.dp))
+                    CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.5.dp)
+                    Spacer(Modifier.width(8.dp))
+                }
+                if (text.isNotBlank() && !recording) {
+                    Spacer(Modifier.width(8.dp))
+                    Button(onClick = ::submit, shape = CircleShape, contentPadding = PaddingValues(horizontal = 18.dp)) {
+                        Text("发送")
+                    }
+                }
             }
         }
     }

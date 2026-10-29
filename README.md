@@ -10,7 +10,8 @@ OpenAI-compatible endpoint to refine parsing when online is planned, not built.
 - `parser/` — offline Chinese task and time extraction, plain Kotlin/JVM so it
   builds and tests without the Android SDK. Entry point:
   `TaskParser().parse(text, now)`.
-- `app/` — the Android app (Kotlin, Compose, minSdk 26). Push-to-talk →
+- `app/` — the Android app (Kotlin, Compose, minSdk 26). One input bar at
+  the bottom: tap to type, hold to talk (slide up to cancel). Speech →
   SenseVoice int8 via sherpa-onnx, fully offline → parser → confirmation
   card → SQLite → one exact alarm per task (lead time, then due time;
   date-only tasks the evening before and the morning of). Notifications

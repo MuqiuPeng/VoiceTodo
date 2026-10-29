@@ -11,6 +11,8 @@ import com.k2fsa.sherpa.onnx.OfflineRecognizer
 import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
 import com.k2fsa.sherpa.onnx.OfflineSenseVoiceModelConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.nio.ByteBuffer
@@ -89,6 +91,11 @@ class Recorder {
     private var thread: Thread? = null
     private val chunks = mutableListOf<ShortArray>()
 
+    private val _level = MutableStateFlow(0f)
+
+    /** Loudness of the latest chunk, 0..1, so the UI can show it is hearing something. */
+    val level: StateFlow<Float> = _level
+
     @SuppressLint("MissingPermission") // The UI requests RECORD_AUDIO before calling start().
     fun start() {
         if (recording) return
@@ -107,7 +114,13 @@ class Recorder {
             val buf = ShortArray(1600)
             while (recording) {
                 val n = record.read(buf, 0, buf.size)
-                if (n > 0) synchronized(chunks) { chunks += buf.copyOf(n) }
+                if (n > 0) {
+                    synchronized(chunks) { chunks += buf.copyOf(n) }
+                    var sum = 0.0
+                    for (i in 0 until n) sum += buf[i].toDouble() * buf[i]
+                    // Speech sits around RMS 1000–5000; scale so normal talking fills most of the bar.
+                    _level.value = (kotlin.math.sqrt(sum / n) / 4000).toFloat().coerceIn(0f, 1f)
+                }
             }
             record.stop()
             record.release()
@@ -118,6 +131,7 @@ class Recorder {
         recording = false
         thread?.join(1000)
         thread = null
+        _level.value = 0f
         val all = synchronized(chunks) { chunks.toList() }
         val out = FloatArray(all.sumOf { it.size })
         var i = 0
