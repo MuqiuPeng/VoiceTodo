@@ -1,15 +1,17 @@
 # VoiceTodo
 
-Android app: speak a task, get it saved with its deadline, get
-reminded before it is due. Speech recognition and parsing run entirely
+Android app: speak or type a task in Chinese or English, get it saved with
+its deadline, get reminded before it is due. The UI is in English and
+Chinese (follows the system, or pick one in Settings → Language). Speech recognition and parsing run entirely
 on-device (sherpa-onnx + the rule parser). A user-configured DeepSeek /
 OpenAI-compatible endpoint to refine parsing when online is planned, not built.
 
 ## Modules
 
-- `parser/` — offline Chinese task and time extraction, plain Kotlin/JVM so it
-  builds and tests without the Android SDK. Entry point:
-  `TaskParser().parse(text, now)`.
+- `parser/` — offline task and time extraction, plain Kotlin/JVM so it builds
+  and tests without the Android SDK. `TaskParser` for Chinese,
+  `EnglishParser` for English; `looksEnglish(text)` picks one, so Chinese with
+  English words in it ("明天跟OpenAI开会") stays with the Chinese rules.
 - `app/` — the Android app (Kotlin, Compose, minSdk 26). One input bar at
   the bottom: tap to type, hold to talk (slide up to cancel). A drawer (menu
   button, or swipe from the left) holds 专有名词 and 设置 (speech pack,
@@ -37,6 +39,17 @@ are fixed after recognition instead (`parser/.../Vocabulary.kt`):
 - **Learning** — fixing a name by hand on the confirmation card offers to add
   it, with what was heard as its alias. Corrections are listed on the card
   with an undo.
+
+### English
+
+SenseVoice runs with language detection (`auto`) and writes English in
+capitals with numbers as words ("CALL BOB TOMORROW AT THREE PM"), so the
+English side lower-cases all-caps text first and reads spelled-out times.
+`EnglishParser` covers the common dictation phrasings (tomorrow, next Friday,
+at 3pm, by Friday, within 3 days, in 2 hours, end of month, remind me 30
+minutes before); `EnglishDisfluency` removes um/uh and corrections like
+"Friday, no wait, Saturday". Padding silence before recognition was tried and
+made SenseVoice worse, so audio is fed as recorded.
 
 ### Hesitations (语气词和改口)
 

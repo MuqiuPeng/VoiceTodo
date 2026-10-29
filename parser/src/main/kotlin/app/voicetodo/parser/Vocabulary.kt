@@ -10,6 +10,8 @@ package app.voicetodo.parser
  */
 data class Term(val text: String, val aliases: List<String> = emptyList())
 
+private fun Char.isAsciiLetter() = this in 'a'..'z' || this in 'A'..'Z'
+
 /** One replacement made, with its range in the corrected text, so the UI can show and undo it. */
 data class Correction(val from: String, val to: String, val range: IntRange)
 
@@ -75,11 +77,18 @@ class VocabularyCorrector(terms: List<Term>) {
         val candidates = mutableListOf<Candidate>()
 
         for (term in terms) {
-            for (alias in term.aliases.filter { it.isNotBlank() && it != term.text }) {
+            // A Latin-letter term is its own alias, so "bob" from an all-caps
+            // English transcript comes back as "Bob".
+            val own = if (term.text.any { it in 'a'..'z' || it in 'A'..'Z' }) listOf(term.text) else emptyList()
+            for (alias in (term.aliases + own).filter { it.isNotBlank() }.distinct()) {
                 var i = text.indexOf(alias, ignoreCase = true)
                 while (i >= 0) {
-                    candidates += Candidate(i, i + alias.length, term.text, viaAlias = true)
-                    i = text.indexOf(alias, i + alias.length, ignoreCase = true)
+                    val end = i + alias.length
+                    // Whole words only for Latin text: "Bob" must not rewrite "Bobby".
+                    val wordOk = !alias.first().isLetter() || alias.first().code > 0x7f ||
+                        ((i == 0 || !text[i - 1].isAsciiLetter()) && (end == text.length || !text[end].isAsciiLetter()))
+                    if (wordOk && text.substring(i, end) != term.text) candidates += Candidate(i, end, term.text, viaAlias = true)
+                    i = text.indexOf(alias, end, ignoreCase = true)
                 }
             }
         }

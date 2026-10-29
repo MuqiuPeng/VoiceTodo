@@ -11,6 +11,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import app.voicetodo.R
+import app.voicetodo.localized
 import app.voicetodo.data.Task
 import app.voicetodo.data.TaskStore
 import app.voicetodo.ui.MainActivity
@@ -26,9 +27,11 @@ object Reminders {
     private const val ACTION_SNOOZE = "app.voicetodo.SNOOZE"
     private const val EXTRA_ID = "task_id"
 
+    /** Re-run on language change too: re-creating a channel updates its name and description. */
     fun createChannel(context: Context) {
-        val channel = NotificationChannel(CHANNEL, "任务提醒", NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "任务快到期和已到期时的提醒"
+        val ctx = context.localized()
+        val channel = NotificationChannel(CHANNEL, ctx.getString(R.string.channel_name), NotificationManager.IMPORTANCE_HIGH).apply {
+            description = ctx.getString(R.string.channel_desc)
             enableVibration(true)
         }
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
@@ -109,10 +112,11 @@ object Reminders {
 
     private fun notify(context: Context, task: Task, now: LocalDateTime) {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+        val ctx = context.localized()
         val overdue = task.dueAt?.let { it <= now } ?: false
-        val title = if (overdue) "已到期：${task.title}" else task.title
+        val title = if (overdue) ctx.getString(R.string.notif_overdue, task.title) else task.title
         val text = buildString {
-            append(describeDue(task.dueDate, task.dueTime, task.dueKind, now.toLocalDate()) ?: "提醒")
+            append(describeDue(task.dueDate, task.dueTime, task.dueKind, now.toLocalDate(), ctx.resources) ?: ctx.getString(R.string.notif_reminder))
             task.detail?.let { append(" · ").append(it) }
         }
         val open = PendingIntent.getActivity(
@@ -128,8 +132,8 @@ object Reminders {
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setContentIntent(open)
             .setAutoCancel(true)
-            .addAction(0, "完成", actionIntent(context, ACTION_DONE, task.id))
-            .addAction(0, "1小时后再提醒", actionIntent(context, ACTION_SNOOZE, task.id))
+            .addAction(0, ctx.getString(R.string.swipe_done), actionIntent(context, ACTION_DONE, task.id))
+            .addAction(0, ctx.getString(R.string.notif_snooze), actionIntent(context, ACTION_SNOOZE, task.id))
             .build()
         try {
             NotificationManagerCompat.from(context).notify(task.id.toInt(), n)

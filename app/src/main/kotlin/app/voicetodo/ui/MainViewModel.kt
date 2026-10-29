@@ -3,13 +3,18 @@ package app.voicetodo.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import app.voicetodo.R
 import app.voicetodo.VoiceTodoApp
+import app.voicetodo.localized
 import app.voicetodo.data.Task
 import app.voicetodo.data.TaskStore
 import app.voicetodo.data.VocabularyStore
 import app.voicetodo.parser.Cleaned
 import app.voicetodo.parser.Correction
 import app.voicetodo.parser.Disfluency
+import app.voicetodo.parser.EnglishDisfluency
+import app.voicetodo.parser.EnglishParser
+import app.voicetodo.parser.looksEnglish
 import app.voicetodo.parser.Term
 import app.voicetodo.parser.VocabularyCorrector
 import app.voicetodo.parser.suggestTerm
@@ -73,6 +78,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val store = TaskStore.get(app)
     private val vocabulary = VocabularyStore.get(app)
     private val parser = TaskParser()
+    private val englishParser = EnglishParser()
     private val recorder = Recorder()
 
     val tasks: StateFlow<List<Task>> = store.tasks
@@ -81,6 +87,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val packs = voiceApp.packs
 
     fun deleteSpeechPack() = voiceApp.deleteSpeechPack()
+
+    private fun text(id: Int, vararg args: Any) = getApplication<Application>().localized().getString(id, *args)
 
     val recordings = voiceApp.recordings
 
@@ -110,7 +118,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val samples = recorder.stop()
         // Under half a second is a tap, not speech.
         if (samples.size < SpeechEngine.SAMPLE_RATE / 2) {
-            _capture.value = Capture.Failed("按住按钮说话，说完再松开")
+            _capture.value = Capture.Failed(text(R.string.hold_longer))
             return
         }
         recognize(samples)
@@ -138,13 +146,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val text = voiceApp.speech.transcribe(samples)
                 if (text.isBlank()) {
-                    _capture.value = Capture.Failed("没听清，请再说一次")
+                    _capture.value = Capture.Failed(text(R.string.not_heard))
                 } else {
                     _capture.value = Capture.Idle
                     parseText(text)
                 }
             } catch (e: Throwable) {
-                _capture.value = Capture.Failed("识别失败：${e.message}")
+                _capture.value = Capture.Failed(text(R.string.recognize_failed, e.message ?: e.javaClass.simpleName))
             }
         }
     }
@@ -156,12 +164,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun parseText(heard: String, correct: Boolean = true) {
         val terms = vocabulary.terms.value
-        val cleaned = if (correct) Disfluency.clean(heard, terms.map { it.text }) else null
+        val english = looksEnglish(heard)
+        val cleaned = when {
+            !correct -> null
+            english -> EnglishDisfluency.clean(heard)
+            else -> Disfluency.clean(heard, terms.map { it.text })
+        }
         // All filler ("嗯嗯") leaves nothing; better to show what was heard than an empty card.
         val base = cleaned?.text?.ifBlank { null } ?: heard
         val corrected = if (correct) VocabularyCorrector(terms).correct(base) else null
         val text = corrected?.text ?: base
-        val result = parser.parse(text, LocalDateTime.now(), terms.map { it.text })
+        val result = if (english) englishParser.parse(text, LocalDateTime.now(), terms.map { it.text })
+        else parser.parse(text, LocalDateTime.now(), terms.map { it.text })
         val drafts = result.tasks.mapIndexed { i, t ->
             Draft(
                 key = i,

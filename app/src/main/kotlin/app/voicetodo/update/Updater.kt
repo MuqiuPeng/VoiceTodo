@@ -8,7 +8,10 @@ import android.content.pm.PackageInstaller
 import android.net.ConnectivityManager
 import android.net.Uri
 import android.provider.Settings
+import app.voicetodo.R
+import app.voicetodo.localized
 import app.voicetodo.net.Download
+import app.voicetodo.net.describe
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -93,7 +96,7 @@ class Updater(private val context: Context, private val scope: CoroutineScope) {
                         else -> UpdateState.Available(r)
                     }
                 },
-                onFailure = { if (manual) UpdateState.Failed("检查更新失败：${it.message ?: it.javaClass.simpleName}") else UpdateState.Idle },
+                onFailure = { if (manual) UpdateState.Failed(text(R.string.update_check_failed, it.describe(context))) else UpdateState.Idle },
             )
         }
     }
@@ -118,7 +121,7 @@ class Updater(private val context: Context, private val scope: CoroutineScope) {
             try {
                 val apk = download(release)
                 if (!context.packageManager.canRequestPackageInstalls()) {
-                    _state.value = UpdateState.Failed("请允许本应用“安装未知应用”，然后再点一次安装", release)
+                    _state.value = UpdateState.Failed(text(R.string.update_allow_install), release)
                     context.startActivity(
                         Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}"))
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
@@ -128,15 +131,17 @@ class Updater(private val context: Context, private val scope: CoroutineScope) {
                 _state.value = UpdateState.Installing(release)
                 install(apk)
             } catch (e: Exception) {
-                if (isActive) _state.value = UpdateState.Failed("更新失败：${e.message ?: e.javaClass.simpleName}", release)
+                if (isActive) _state.value = UpdateState.Failed(text(R.string.update_failed, e.describe(context)), release)
             }
         }
     }
 
+    private fun text(id: Int, vararg args: Any) = context.localized().getString(id, *args)
+
     /** Called by [InstallResultReceiver] when the installer gives up. */
     internal fun installFailed(message: String) {
         val release = (_state.value as? UpdateState.Installing)?.release
-        _state.value = UpdateState.Failed("安装没有完成：$message", release)
+        _state.value = UpdateState.Failed(text(R.string.install_incomplete, message), release)
     }
 
     // --- network ---------------------------------------------------------
@@ -230,7 +235,10 @@ class InstallResultReceiver : BroadcastReceiver() {
             PackageInstaller.STATUS_SUCCESS -> Unit
             else -> {
                 val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
-                    ?: if (status == PackageInstaller.STATUS_FAILURE_ABORTED) "已取消" else "错误 $status"
+                    ?: context.localized().run {
+                        if (status == PackageInstaller.STATUS_FAILURE_ABORTED) getString(R.string.install_cancelled)
+                        else getString(R.string.install_error, status)
+                    }
                 (context.applicationContext as app.voicetodo.VoiceTodoApp).updater.installFailed(message)
             }
         }

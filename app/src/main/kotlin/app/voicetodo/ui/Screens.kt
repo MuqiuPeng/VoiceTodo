@@ -1,6 +1,7 @@
 package app.voicetodo.ui
 
 import android.Manifest
+import android.content.res.Resources
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.pm.PackageManager
@@ -36,6 +37,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -83,10 +86,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import app.voicetodo.R
 import app.voicetodo.VoiceTodoApp.EngineState
 import app.voicetodo.data.Task
 import app.voicetodo.parser.MentionKind
@@ -107,47 +113,25 @@ fun HomeScreen(vm: MainViewModel, menu: @Composable () -> Unit, openSettings: ()
     val tasks by vm.tasks.collectAsState()
     val suggestions by vm.suggestions.collectAsState()
     val today = LocalDate.now()
-    val open = tasks.filter { !it.done }
-    val done = tasks.filter { it.done }
     val snackbar = remember { SnackbarHostState() }
+    val res = LocalContext.current.resources
     val deleted by vm.deleted.collectAsState()
     LaunchedEffect(deleted) {
         val t = deleted ?: return@LaunchedEffect
-        val r = snackbar.showSnackbar("已删除「${t.title}」", actionLabel = "撤销", duration = SnackbarDuration.Long)
+        val r = snackbar.showSnackbar(res.getString(R.string.deleted, t.title), actionLabel = res.getString(R.string.undo), duration = SnackbarDuration.Long)
         if (r == SnackbarResult.ActionPerformed) vm.undoDelete(t) else vm.finishDelete(t)
     }
 
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 8.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            menu()
-            Text(
-                "语音待办",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(start = 4.dp),
-            )
-        }
+        Box(Modifier.padding(start = 8.dp, top = 8.dp)) { menu() }
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(suggestions, key = { "suggest-" + it.text }) { SuggestionCard(it, vm) }
-            items(open, key = { it.id }) { TaskRow(it, today, vm) }
-            if (done.isNotEmpty()) {
-                item {
-                    Text(
-                        "已完成",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 16.dp, start = 4.dp),
-                    )
-                }
-                items(done, key = { it.id }) { TaskRow(it, today, vm) }
-            }
+            // One list: open tasks first (by due time), completed ones after, dimmed rather than set apart.
+            items(tasks, key = { it.id }) { TaskRow(it, today, vm) }
         }
         SnackbarHost(snackbar)
         InputBar(vm, openSettings)
@@ -156,43 +140,42 @@ fun HomeScreen(vm: MainViewModel, menu: @Composable () -> Unit, openSettings: ()
 
 @Composable
 fun UpdateCard(state: UpdateState, updater: Updater) {
-    fun mb(bytes: Long) = "%.0f MB".format(bytes / 1_048_576.0)
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             when (state) {
                 UpdateState.Idle -> Unit
-                UpdateState.Checking -> Text("正在检查更新…")
+                UpdateState.Checking -> Text(stringResource(R.string.update_checking))
                 UpdateState.UpToDate -> {
-                    Text("已经是最新版本 v${updater.currentVersion}")
-                    TextButton(onClick = updater::dismiss) { Text("好") }
+                    Text(stringResource(R.string.update_latest, "v${updater.currentVersion}"))
+                    TextButton(onClick = updater::dismiss) { Text(stringResource(R.string.ok)) }
                 }
                 is UpdateState.Available -> {
                     val r = state.release
-                    Text("发现新版本 v${r.version}（${mb(r.size)}）", fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.update_available, "v${r.version}", mb(r.size)), fontWeight = FontWeight.SemiBold)
                     if (r.notes.isNotBlank()) Text(r.notes, style = MaterialTheme.typography.bodySmall)
                     if (updater.isMetered) {
-                        Text("当前在用移动数据，建议连上 Wi-Fi 再下载", color = Amber, style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.update_metered), color = Amber, style = MaterialTheme.typography.bodySmall)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { updater.downloadAndInstall(r) }) { Text("下载并安装") }
-                        TextButton(onClick = { updater.skip(r) }) { Text("跳过此版本") }
+                        Button(onClick = { updater.downloadAndInstall(r) }) { Text(stringResource(R.string.update_install)) }
+                        TextButton(onClick = { updater.skip(r) }) { Text(stringResource(R.string.update_skip)) }
                     }
                 }
                 is UpdateState.Downloading -> {
                     val r = state.release
-                    Text("正在下载 v${r.version}：${mb(state.done)} / ${mb(r.size)}")
+                    Text(stringResource(R.string.update_downloading, "v${r.version}", mb(state.done), mb(r.size)))
                     LinearProgressIndicator(
                         progress = { if (r.size > 0) state.done.toFloat() / r.size else 0f },
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    TextButton(onClick = updater::cancelDownload) { Text("暂停") }
+                    TextButton(onClick = updater::cancelDownload) { Text(stringResource(R.string.pause)) }
                 }
-                is UpdateState.Installing -> Text("正在安装 v${state.release.version}，请在系统弹窗中确认…")
+                is UpdateState.Installing -> Text(stringResource(R.string.update_installing, "v${state.release.version}"))
                 is UpdateState.Failed -> {
                     Text(state.message, color = MaterialTheme.colorScheme.error)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        state.release?.let { r -> Button(onClick = { updater.downloadAndInstall(r) }) { Text("重试") } }
-                        TextButton(onClick = updater::dismiss) { Text("关闭") }
+                        state.release?.let { r -> Button(onClick = { updater.downloadAndInstall(r) }) { Text(stringResource(R.string.retry)) } }
+                        TextButton(onClick = updater::dismiss) { Text(stringResource(R.string.close)) }
                     }
                 }
             }
@@ -207,17 +190,17 @@ private fun SuggestionCard(suggestion: Term, vm: MainViewModel) {
     var heard by remember(suggestion) { mutableStateOf(suggestion.aliases.joinToString("，")) }
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("加入专有名词？以后会自动纠正", fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.suggest_title), fontWeight = FontWeight.SemiBold)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(text, { text = it }, label = { Text("正确写法") }, singleLine = true, modifier = Modifier.weight(1f))
-                OutlinedTextField(heard, { heard = it }, label = { Text("常被听成") }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(text, { text = it }, label = { Text(stringResource(R.string.spelling)) }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(heard, { heard = it }, label = { Text(stringResource(R.string.heard_as)) }, singleLine = true, modifier = Modifier.weight(1f))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(enabled = text.isNotBlank(), onClick = {
                     vm.addTerm(Term(text.trim(), splitAliases(heard)))
                     vm.dismissSuggestion(suggestion)
-                }) { Text("加入") }
-                TextButton(onClick = { vm.dismissSuggestion(suggestion) }) { Text("不用") }
+                }) { Text(stringResource(R.string.add)) }
+                TextButton(onClick = { vm.dismissSuggestion(suggestion) }) { Text(stringResource(R.string.no_thanks)) }
             }
         }
     }
@@ -232,7 +215,7 @@ fun VocabularyScreen(vm: MainViewModel, onBack: () -> Unit) {
     var text by remember { mutableStateOf("") }
     var heard by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
-        PageHeader("专有名词", onBack)
+        PageHeader(stringResource(R.string.vocabulary), onBack)
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(16.dp),
@@ -241,13 +224,13 @@ fun VocabularyScreen(vm: MainViewModel, onBack: () -> Unit) {
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(text, { text = it }, label = { Text("正确写法，如：腾讯") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                        OutlinedTextField(heard, { heard = it }, label = { Text("常被听成（可不填，多个用逗号分开）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(text, { text = it }, label = { Text(stringResource(R.string.spelling_example)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(heard, { heard = it }, label = { Text(stringResource(R.string.heard_as_optional)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                         Button(enabled = text.isNotBlank(), onClick = {
                             vm.addTerm(Term(text.trim(), splitAliases(heard)))
                             text = ""
                             heard = ""
-                        }) { Text("添加") }
+                        }) { Text(stringResource(R.string.add_term)) }
                     }
                 }
             }
@@ -258,13 +241,13 @@ fun VocabularyScreen(vm: MainViewModel, onBack: () -> Unit) {
                             Text(t.text, style = MaterialTheme.typography.bodyLarge)
                             if (t.aliases.isNotEmpty()) {
                                 Text(
-                                    "常被听成：" + t.aliases.joinToString("、"),
+                                    stringResource(R.string.heard_as_list, t.aliases.joinToString(" · ")),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
-                        TextButton(onClick = { vm.deleteTerm(t.text) }) { Text("删除") }
+                        TextButton(onClick = { vm.deleteTerm(t.text) }) { Text(stringResource(R.string.delete)) }
                     }
                 }
             }
@@ -279,7 +262,7 @@ fun VocabularyScreen(vm: MainViewModel, onBack: () -> Unit) {
  */
 @Composable
 private fun TaskRow(task: Task, today: LocalDate, vm: MainViewModel) {
-    val due = describeDue(task.dueDate, task.dueTime, task.dueKind, today)
+    val due = describeDue(task.dueDate, task.dueTime, task.dueKind, today, LocalContext.current.resources)
     val overdue = !task.done && task.dueAt?.let { it < LocalDateTime.now() } == true
     val playing by vm.recordings.playing.collectAsState()
     val shape = RoundedCornerShape(12.dp)
@@ -308,11 +291,13 @@ private fun TaskRow(task: Task, today: LocalDate, vm: MainViewModel) {
                 ) {
                     if (deleting || completing) {
                         Text(
-                            when {
-                                deleting -> "删除"
-                                task.done -> "恢复"
-                                else -> "完成"
-                            },
+                            stringResource(
+                                when {
+                                    deleting -> R.string.swipe_delete
+                                    task.done -> R.string.swipe_restore
+                                    else -> R.string.swipe_done
+                                },
+                            ),
                             color = if (deleting) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
                             fontWeight = FontWeight.SemiBold,
                         )
@@ -327,23 +312,53 @@ private fun TaskRow(task: Task, today: LocalDate, vm: MainViewModel) {
                 }
             },
         ) {
-            Card(Modifier.fillMaxWidth(), shape = shape) {
+            // Open tasks stand out (raised, bold, a coloured edge when they have a
+            // time); completed ones recede (flat, faded, struck through).
+            val scheduled = !task.done && task.dueDate != null
+            Card(
+                Modifier.fillMaxWidth().alpha(if (task.done) 0.45f else 1f),
+                shape = shape,
+                colors = CardDefaults.cardColors(
+                    containerColor = if (task.done) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    else MaterialTheme.colorScheme.surfaceContainerHighest,
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = if (task.done) 0.dp else 2.dp),
+            ) {
+                Row(Modifier.height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .width(5.dp)
+                            .fillMaxHeight()
+                            .background(
+                                when {
+                                    overdue -> MaterialTheme.colorScheme.error
+                                    scheduled -> MaterialTheme.colorScheme.primary
+                                    else -> Color.Transparent
+                                },
+                            ),
+                    )
                 Row(
-                    Modifier.padding(start = 16.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
+                    Modifier.weight(1f).padding(start = 14.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(
                             task.title,
                             style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = if (task.done) FontWeight.Normal else FontWeight.SemiBold,
                             textDecoration = if (task.done) TextDecoration.LineThrough else null,
                             color = if (task.done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                         )
                         if (due != null) {
                             Text(
-                                (if (overdue) "已到期 · " else "") + due,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (overdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                                if (overdue) stringResource(R.string.overdue, due) else due,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (scheduled) FontWeight.Medium else FontWeight.Normal,
+                                color = when {
+                                    overdue -> MaterialTheme.colorScheme.error
+                                    scheduled -> MaterialTheme.colorScheme.primary
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                },
                             )
                         }
                         task.detail?.let {
@@ -352,9 +367,10 @@ private fun TaskRow(task: Task, today: LocalDate, vm: MainViewModel) {
                     }
                     task.audio?.let { audio ->
                         TextButton(onClick = { vm.recordings.toggle(audio) }) {
-                            Text(if (playing == audio) "■ 停止" else "▶ " + vm.recordings.seconds(audio).let { "%d:%02d".format(it / 60, it % 60) })
+                            Text(if (playing == audio) stringResource(R.string.stop) else "▶ " + vm.recordings.seconds(audio).let { "%d:%02d".format(it / 60, it % 60) })
                         }
                     }
+                }
                 }
             }
         }
@@ -387,6 +403,7 @@ private fun InputBar(vm: MainViewModel, openSettings: () -> Unit) {
     val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { micGranted = it }
     val ready = engine == EngineState.Ready
     val recording = capture == Capture.Recording
+    val loadingHint = stringResource(R.string.engine_loading)
 
     fun submit() {
         if (text.isBlank()) return
@@ -396,11 +413,11 @@ private fun InputBar(vm: MainViewModel, openSettings: () -> Unit) {
     }
 
     val status = when {
-        recording && cancelArmed -> "松开手指，取消这次录音"
-        recording -> "正在听…松开结束，上滑取消"
-        capture == Capture.Recognizing -> "识别中…"
+        recording && cancelArmed -> stringResource(R.string.release_to_cancel)
+        recording -> stringResource(R.string.listening)
+        capture == Capture.Recognizing -> stringResource(R.string.recognizing)
         capture is Capture.Failed -> (capture as Capture.Failed).message
-        engine is EngineState.Failed -> "语音模型加载失败：${(engine as EngineState.Failed).message}"
+        engine is EngineState.Failed -> stringResource(R.string.engine_failed, (engine as EngineState.Failed).message)
         else -> hint
     }
 
@@ -467,7 +484,7 @@ private fun InputBar(vm: MainViewModel, openSettings: () -> Unit) {
                             decorationBox = { inner ->
                                 if (text.isEmpty()) {
                                     Text(
-                                        if (capture == Capture.Recognizing) "识别中…" else "输入任务，或长按说话",
+                                        stringResource(if (capture == Capture.Recognizing) R.string.recognizing else R.string.input_hint),
                                         style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -497,7 +514,7 @@ private fun InputBar(vm: MainViewModel, openSettings: () -> Unit) {
                                         }
                                         when {
                                             engine == EngineState.Missing -> openSettings()
-                                            !ready -> hint = "语音模型还在加载，请稍等几秒"
+                                            !ready -> hint = loadingHint
                                             !micGranted -> micLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                             else -> {
                                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -532,7 +549,7 @@ private fun InputBar(vm: MainViewModel, openSettings: () -> Unit) {
                 if (text.isNotBlank() && !recording) {
                     Spacer(Modifier.width(8.dp))
                     Button(onClick = ::submit, shape = CircleShape, contentPadding = PaddingValues(horizontal = 18.dp)) {
-                        Text("发送")
+                        Text(stringResource(R.string.send))
                     }
                 }
             }
@@ -545,17 +562,17 @@ private fun TextInputDialog(initial: String, onDismiss: () -> Unit, onSubmit: (S
     var text by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("输入任务") },
+        title = { Text(stringResource(R.string.type_task)) },
         text = {
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
-                placeholder = { Text("例如：明天下午三点开会") },
+                placeholder = { Text(stringResource(R.string.type_example)) },
                 minLines = 2,
             )
         },
-        confirmButton = { TextButton(enabled = text.isNotBlank(), onClick = { onSubmit(text) }) { Text("解析") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        confirmButton = { TextButton(enabled = text.isNotBlank(), onClick = { onSubmit(text) }) { Text(stringResource(R.string.parse)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
 
@@ -567,7 +584,7 @@ fun ConfirmScreen(c: Confirmation, vm: MainViewModel) {
     val count = c.drafts.count { it.include && it.title.isNotBlank() }
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
         Text(
-            "确认任务",
+            stringResource(R.string.confirm_title),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(start = 20.dp, top = 16.dp),
@@ -579,17 +596,17 @@ fun ConfirmScreen(c: Confirmation, vm: MainViewModel) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = { editingTranscript = true }) { Text("改文字") }
+            TextButton(onClick = { editingTranscript = true }) { Text(stringResource(R.string.edit_text)) }
         }
         if (c.tidied) {
             Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    tidySummary(c),
+                    tidySummary(c, LocalContext.current.resources),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = vm::undoCorrections) { Text("撤回") }
+                TextButton(onClick = vm::undoCorrections) { Text(stringResource(R.string.revert)) }
             }
         }
         LazyColumn(
@@ -601,9 +618,9 @@ fun ConfirmScreen(c: Confirmation, vm: MainViewModel) {
         }
         HorizontalDivider()
         Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = vm::dismissConfirmation, modifier = Modifier.weight(1f)) { Text("取消") }
+            OutlinedButton(onClick = vm::dismissConfirmation, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.cancel)) }
             Button(onClick = vm::saveConfirmation, enabled = count > 0, modifier = Modifier.weight(1f)) {
-                Text(if (count > 1) "保存 $count 条" else "保存")
+                Text(if (count > 1) stringResource(R.string.save_n, count) else stringResource(R.string.save))
             }
         }
     }
@@ -617,11 +634,14 @@ fun ConfirmScreen(c: Confirmation, vm: MainViewModel) {
 }
 
 /** "去掉 嗯、那个 · 改口 明天→后天 · 纠正 疼讯→腾讯" — what the undo next to it would bring back. */
-private fun tidySummary(c: Confirmation): String = buildList {
-    c.cleaned?.fillers?.distinct()?.takeIf { it.isNotEmpty() }?.let { add("去掉 " + it.joinToString("、")) }
-    c.cleaned?.repairs?.takeIf { it.isNotEmpty() }?.let { r -> add("改口 " + r.joinToString("，") { "${it.first}→${it.second}" }) }
-    if (c.corrections.isNotEmpty()) add("纠正 " + c.corrections.joinToString("，") { "${it.from}→${it.to}" })
-}.joinToString(" · ", prefix = "已整理：")
+private fun tidySummary(c: Confirmation, res: Resources): String = res.getString(
+    R.string.tidy_prefix,
+    buildList {
+        c.cleaned?.fillers?.distinct()?.takeIf { it.isNotEmpty() }?.let { add(res.getString(R.string.tidy_fillers, it.joinToString(" "))) }
+        c.cleaned?.repairs?.takeIf { it.isNotEmpty() }?.let { r -> add(res.getString(R.string.tidy_repairs, r.joinToString(" ") { "${it.first}→${it.second}" })) }
+        if (c.corrections.isNotEmpty()) add(res.getString(R.string.tidy_corrections, c.corrections.joinToString(" ") { "${it.from}→${it.to}" }))
+    }.joinToString(" · "),
+)
 
 private val LEADS: List<Duration?> = listOf(
     null, Duration.ZERO, Duration.ofMinutes(10), Duration.ofMinutes(30),
@@ -631,6 +651,7 @@ private val LEADS: List<Duration?> = listOf(
 @Composable
 private fun DraftCard(d: Draft, multiple: Boolean, vm: MainViewModel) {
     val context = LocalContext.current
+    val res = context.resources
     val today = LocalDate.now()
     fun edit(change: (Draft) -> Draft) = vm.editDraft(d.key, change)
 
@@ -641,7 +662,7 @@ private fun DraftCard(d: Draft, multiple: Boolean, vm: MainViewModel) {
                 OutlinedTextField(
                     value = d.title,
                     onValueChange = { v -> edit { it.copy(title = v) } },
-                    label = { Text("任务") },
+                    label = { Text(stringResource(R.string.task_label)) },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -654,7 +675,7 @@ private fun DraftCard(d: Draft, multiple: Boolean, vm: MainViewModel) {
                             edit { it.copy(date = LocalDate.of(y, m + 1, day), warnings = it.warnings - app.voicetodo.parser.Warning.INVALID_DATE) }
                         }, base.year, base.monthValue - 1, base.dayOfMonth).show()
                     },
-                    label = { Text(d.date?.let { describeDate(it, today) } ?: "选日期") },
+                    label = { Text(d.date?.let { describeDate(it, today, res) } ?: stringResource(R.string.pick_date)) },
                 )
                 AssistChip(
                     onClick = {
@@ -663,23 +684,23 @@ private fun DraftCard(d: Draft, multiple: Boolean, vm: MainViewModel) {
                             edit { it.copy(time = LocalTime.of(h, m), date = it.date ?: today) }
                         }, base.hour, base.minute, true).show()
                     },
-                    label = { Text(d.time?.let(::describeTime) ?: "不限时间") },
+                    label = { Text(d.time?.let(::describeTime) ?: stringResource(R.string.any_time)) },
                 )
                 if (d.time != null) {
-                    AssistChip(onClick = { edit { it.copy(time = null) } }, label = { Text("去掉时间") })
+                    AssistChip(onClick = { edit { it.copy(time = null) } }, label = { Text(stringResource(R.string.clear_time)) })
                 }
                 if (d.date != null) {
                     val deadline = d.kind == MentionKind.DEADLINE
                     FilterChip(
                         selected = deadline,
                         onClick = { edit { it.copy(kind = if (deadline) MentionKind.AT else MentionKind.DEADLINE) } },
-                        label = { Text(if (deadline) "截止时间" else "发生时间") },
+                        label = { Text(stringResource(if (deadline) R.string.kind_deadline else R.string.kind_at)) },
                     )
                 }
             }
 
             d.remindAt?.let {
-                Text("提醒：${describeDate(it.toLocalDate(), today)} ${describeTime(it.toLocalTime())}", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.remind_at, describeDate(it.toLocalDate(), today, res) + " " + describeTime(it.toLocalTime())), style = MaterialTheme.typography.bodySmall)
             }
 
             if (d.date != null) {
@@ -688,16 +709,16 @@ private fun DraftCard(d: Draft, multiple: Boolean, vm: MainViewModel) {
                         FilterChip(
                             selected = d.remindBefore == lead,
                             onClick = { edit { it.copy(remindBefore = lead) } },
-                            label = { Text(describeLead(lead)) },
+                            label = { Text(describeLead(lead, res)) },
                         )
                     }
                 }
             }
 
-            d.detail?.let { Text("备注：$it", style = MaterialTheme.typography.bodySmall) }
+            d.detail?.let { Text(stringResource(R.string.detail, it), style = MaterialTheme.typography.bodySmall) }
 
             d.warnings.forEach { w ->
-                Text("⚠ " + describeWarning(w), color = Amber, style = MaterialTheme.typography.bodySmall)
+                Text("⚠ " + describeWarning(w, res), color = Amber, style = MaterialTheme.typography.bodySmall)
             }
             if (d.alternatives.isNotEmpty()) {
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -716,7 +737,7 @@ private fun DraftCard(d: Draft, multiple: Boolean, vm: MainViewModel) {
                                     )
                                 }
                             },
-                            label = { Text("改为 " + describeDate(alt.date, today) + (alt.time?.let { " " + describeTime(it) } ?: "")) },
+                            label = { Text(stringResource(R.string.change_to, describeDate(alt.date, today, res) + (alt.time?.let { " " + describeTime(it) } ?: ""))) },
                         )
                     }
                 }

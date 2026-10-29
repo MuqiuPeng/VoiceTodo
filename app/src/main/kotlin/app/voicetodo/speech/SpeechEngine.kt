@@ -38,7 +38,9 @@ class SpeechEngine {
             modelConfig = OfflineModelConfig(
                 senseVoice = OfflineSenseVoiceModelConfig(
                     model = File(dir, "model.int8.onnx").absolutePath,
-                    language = "zh",
+                    // Detected per utterance, so Chinese, English and Chinese
+                    // with English words in it all come through.
+                    language = "auto",
                     // Writes "三点半" as "3点半" and adds punctuation, which the
                     // task parser's clause splitting relies on.
                     useInverseTextNormalization = true,
@@ -59,6 +61,9 @@ class SpeechEngine {
         val r = recognizer ?: error("speech model not loaded")
         val stream = r.createStream()
         try {
+            // Fed as recorded. Padding silence in front was tried (100–600 ms)
+            // and made SenseVoice worse, not better: it shifts the frames and
+            // garbles words ("submit" → "uubmit").
             stream.acceptWaveform(samples, SAMPLE_RATE)
             r.decode(stream)
             r.getResult(stream).text.trim()

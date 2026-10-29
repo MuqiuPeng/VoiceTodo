@@ -1,4 +1,180 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">语音待办</string>
+    <string name="app_name">VoiceTodo</string>
+    <string name="input_hint">Type a task, or hold to talk</string>
+    <string name="send">Send</string>
+    <string name="listening">Listening… release to finish, slide up to cancel</string>
+    <string name="release_to_cancel">Release to discard this recording</string>
+    <string name="recognizing">Recognizing…</string>
+    <string name="engine_failed">Speech model failed to load: %1$s</string>
+    <string name="engine_loading">Speech model is still loading, one moment</string>
+    <string name="hold_longer">Hold the field while you talk, release when done</string>
+    <string name="not_heard">Didn\'t catch that, please try again</string>
+    <string name="recognize_failed">Recognition failed: %1$s</string>
+    <string name="menu">Menu</string>
+    <string name="deleted">Deleted “%1$s”</string>
+    <string name="undo">Undo</string>
+    <string name="swipe_delete">Delete</string>
+    <string name="swipe_done">Done</string>
+    <string name="swipe_restore">Restore</string>
+    <string name="overdue">Overdue · %1$s</string>
+    <string name="stop">■ Stop</string>
+    <string name="confirm_title">Confirm</string>
+    <string name="edit_text">Edit text</string>
+    <string name="revert">Revert</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="save_n">Save %1$d</string>
+    <string name="tidy_prefix">Tidied: %1$s</string>
+    <string name="tidy_fillers">removed %1$s</string>
+    <string name="tidy_repairs">self-corrections %1$s</string>
+    <string name="tidy_corrections">corrected %1$s</string>
+    <string name="task_label">Task</string>
+    <string name="pick_date">Pick date</string>
+    <string name="any_time">Any time</string>
+    <string name="clear_time">Clear time</string>
+    <string name="kind_deadline">Deadline</string>
+    <string name="kind_at">Happens at</string>
+    <string name="remind_at">Reminder: %1$s</string>
+    <string name="detail">Note: %1$s</string>
+    <string name="change_to">Change to %1$s</string>
+    <string name="type_task">Type a task</string>
+    <string name="type_example">e.g. meeting tomorrow at 3pm</string>
+    <string name="parse">Parse</string>
+    <string name="vocabulary">Proper nouns</string>
+    <string name="suggest_title">Add to proper nouns? It will be corrected automatically</string>
+    <string name="spelling">Correct spelling</string>
+    <string name="heard_as">Often heard as</string>
+    <string name="add">Add</string>
+    <string name="no_thanks">No thanks</string>
+    <string name="spelling_example">Correct spelling, e.g. Tencent</string>
+    <string name="heard_as_optional">Often heard as (optional, comma-separated)</string>
+    <string name="add_term">Add</string>
+    <string name="heard_as_list">Often heard as: %1$s</string>
+    <string name="delete">Delete</string>
+    <string name="back">‹ Back</string>
+    <string name="settings">Settings</string>
+    <string name="section_speech">Speech pack</string>
+    <string name="section_permissions">Reminder permissions</string>
+    <string name="section_recordings">Recordings</string>
+    <string name="section_language">Language</string>
+    <string name="section_update">Updates</string>
+    <string name="section_about">About</string>
+    <string name="pack_languages">Chinese · English · Cantonese · Japanese · Korean</string>
+    <string name="download">Download</string>
+    <string name="pause">Pause</string>
+    <string name="resume">Resume</string>
+    <string name="retry">Retry</string>
+    <string name="installed">Installed</string>
+    <string name="using_mobile_data">Using mobile data</string>
+    <string name="delete_pack_title">Delete speech pack?</string>
+    <string name="delete_pack_text">Voice input will stop working until you download %1$s again.</string>
+    <string name="perm_notifications">Notifications</string>
+    <string name="perm_exact_alarms">Exact alarms</string>
+    <string name="perm_battery">Run in background (no battery restrictions)</string>
+    <string name="perm_autostart">Autostart (Xiaomi, Huawei, OPPO, vivo…)</string>
+    <string name="perm_on">On</string>
+    <string name="perm_turn_on">Turn on</string>
+    <string name="perm_open">Open</string>
+    <string name="done_recordings">Recordings of completed tasks</string>
+    <string name="recordings_size">%1$d · %2$s</string>
+    <string name="delete_all">Delete all</string>
+    <string name="delete_recordings_title">Delete recordings of completed tasks?</string>
+    <string name="delete_recordings_text">%1$d recordings. The tasks themselves are kept.</string>
+    <string name="lang_system">System</string>
+    <string name="current_version">Version %1$s</string>
+    <string name="check_update">Check for updates</string>
+    <string name="help">Help</string>
+    <string name="homepage">Project page</string>
+    <string name="update_checking">Checking for updates…</string>
+    <string name="update_latest">You\'re on the latest version, %1$s</string>
+    <string name="ok">OK</string>
+    <string name="update_available">New version %1$s (%2$s)</string>
+    <string name="update_metered">You\'re on mobile data; Wi-Fi is recommended</string>
+    <string name="update_install">Download and install</string>
+    <string name="update_skip">Skip this version</string>
+    <string name="update_downloading">Downloading %1$s: %2$s / %3$s</string>
+    <string name="update_installing">Installing %1$s, confirm in the system dialog…</string>
+    <string name="close">Close</string>
+    <string name="update_check_failed">Couldn\'t check for updates: %1$s</string>
+    <string name="update_allow_install">Allow this app to install unknown apps, then tap install again</string>
+    <string name="update_failed">Update failed: %1$s</string>
+    <string name="install_incomplete">Installation didn\'t finish: %1$s</string>
+    <string name="install_cancelled">cancelled</string>
+    <string name="install_error">error %1$d</string>
+    <string name="dl_http">download failed (HTTP %1$d)</string>
+    <string name="dl_size">wrong file size (%1$d / %2$d)</string>
+    <string name="dl_checksum">checksum mismatch, file removed, please retry</string>
+    <string name="dl_save">couldn\'t save the file</string>
+    <string name="channel_name">Task reminders</string>
+    <string name="channel_desc">Reminders before and when tasks are due</string>
+    <string name="notif_overdue">Overdue: %1$s</string>
+    <string name="notif_reminder">Reminder</string>
+    <string name="notif_snooze">Remind in 1 hour</string>
+    <string name="date_today">Today</string>
+    <string name="date_tomorrow">Tomorrow, %1$s</string>
+    <string name="date_day_after">%1$s</string>
+    <string name="date_yesterday">Yesterday</string>
+    <string name="date_pattern">EEE, MMM d</string>
+    <string name="date_pattern_year">EEE, MMM d, yyyy</string>
+    <string name="due_deadline">by %1$s</string>
+    <string name="due_start">from %1$s</string>
+    <string name="lead_default">Default</string>
+    <string name="lead_on_time">On time</string>
+    <string name="lead_days">%1$dd before</string>
+    <string name="lead_hours">%1$dh before</string>
+    <string name="lead_minutes">%1$d min before</string>
+    <string name="warn_in_past">This time has already passed</string>
+    <string name="warn_next_week">“Next week” might mean this week; check the day</string>
+    <string name="warn_am_pm">Morning or evening wasn\'t said; please check</string>
+    <string name="warn_rolled">That time today has passed, moved to tomorrow</string>
+    <string name="warn_weekday">The date and weekday don\'t match; please check</string>
+    <string name="warn_invalid">That date doesn\'t exist; pick another</string>
+    <string name="warn_recurring">Repeating tasks aren\'t supported; only the first is saved</string>
+    <string name="help_input">Input</string>
+    <string name="help_tasks">Tasks</string>
+    <string name="help_time">Saying times</string>
+    <string name="help_confirm">Confirming</string>
+    <string name="help_vocab">Proper nouns</string>
+    <string name="help_reminders">Reminders</string>
+    <string name="help_updates">Updates</string>
+    <string-array name="help_input_lines">
+        <item>Tap the field at the bottom to type, then tap Send.</item>
+        <item>Hold the field to talk, release to finish; slide up while holding to cancel.</item>
+        <item>Voice needs the speech pack from Settings → Speech pack. Recognition runs on the phone, offline, in Chinese and English.</item>
+    </string-array>
+    <string-array name="help_tasks_lines">
+        <item>Swipe left: done. Swipe left on a completed task: restore.</item>
+        <item>Swipe right: delete, with Undo at the bottom.</item>
+        <item>Spoken tasks keep their recording; tap ▶ to play it. Tasks from one sentence share one recording.</item>
+        <item>Settings → Recordings deletes the recordings of all completed tasks; the tasks stay.</item>
+    </string-array>
+    <string-array name="help_time_lines">
+        <item>Dates: today, tomorrow, Friday, next Wednesday, Nov 5, end of the month, in 3 days, within 2 weeks.</item>
+        <item>Times: 3pm, 3:30, 15:30, tonight, this evening, noon.</item>
+        <item>“by / before” sets a deadline; “after / from” sets a start.</item>
+        <item>Reminders: “remind me 30 minutes before”, “remind me a day before”.</item>
+        <item>Several tasks in one sentence: separate them with “and also” or “then”.</item>
+        <item>In Chinese: 明天、后天、周五、下周三、11月5号、月底、国庆前、下午三点、下班前、之前 / 之后、提前半小时提醒我.</item>
+    </string-array>
+    <string-array name="help_confirm_lines">
+        <item>Before saving you see what was understood; title, date and time can all be changed.</item>
+        <item>Anything uncertain is marked, with alternatives one tap away.</item>
+        <item>Removed fillers, self-corrections and proper-noun fixes are listed at the top; Revert restores what you said.</item>
+    </string-array>
+    <string-array name="help_vocab_lines">
+        <item>Add company names, people and places under Proper nouns in the menu; same-sounding Chinese characters are corrected to your spelling.</item>
+        <item>For English names or words that don\'t sound like their spelling, add what they are often heard as.</item>
+        <item>If you fix a name by hand on the confirmation card, you\'ll be offered to add it.</item>
+    </string-array>
+    <string-array name="help_reminders_lines">
+        <item>Tasks with a time: reminded 30 minutes before (adjustable) and when due.</item>
+        <item>Tasks with only a date: reminded at 20:00 the day before and 9:00 on the day.</item>
+        <item>Notifications have Done and Remind in 1 hour.</item>
+        <item>For reminders on time, turn on everything under Settings → Reminder permissions; many Chinese phones also need Autostart.</item>
+    </string-array>
+    <string-array name="help_updates_lines">
+        <item>The app checks for updates once a day, or from Settings → Updates.</item>
+        <item>The network is only used to check for updates and download the speech pack.</item>
+    </string-array>
 </resources>

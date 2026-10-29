@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_hint">输入任务，或长按说话</string>
+    <string name="send">发送</string>
+    <string name="listening">正在听…松开结束，上滑取消</string>
+    <string name="release_to_cancel">松开手指，取消这次录音</string>
+    <string name="recognizing">识别中…</string>
+    <string name="engine_failed">语音模型加载失败：%1$s</string>
+    <string name="engine_loading">语音模型还在加载，请稍等几秒</string>
+    <string name="hold_longer">按住输入框说话，说完再松开</string>
+    <string name="not_heard">没听清，请再说一次</string>
+    <string name="recognize_failed">识别失败：%1$s</string>
+    <string name="menu">菜单</string>
+    <string name="deleted">已删除「%1$s」</string>
+    <string name="undo">撤销</string>
+    <string name="swipe_delete">删除</string>
+    <string name="swipe_done">完成</string>
+    <string name="swipe_restore">恢复</string>
+    <string name="overdue">已到期 · %1$s</string>
+    <string name="stop">■ 停止</string>
+    <string name="confirm_title">确认任务</string>
+    <string name="edit_text">改文字</string>
+    <string name="revert">撤回</string>
+    <string name="cancel">取消</string>
+    <string name="save">保存</string>
+    <string name="save_n">保存 %1$d 条</string>
+    <string name="tidy_prefix">已整理：%1$s</string>
+    <string name="tidy_fillers">去掉 %1$s</string>
+    <string name="tidy_repairs">改口 %1$s</string>
+    <string name="tidy_corrections">纠正 %1$s</string>
+    <string name="task_label">任务</string>
+    <string name="pick_date">选日期</string>
+    <string name="any_time">不限时间</string>
+    <string name="clear_time">去掉时间</string>
+    <string name="kind_deadline">截止时间</string>
+    <string name="kind_at">发生时间</string>
+    <string name="remind_at">提醒：%1$s</string>
+    <string name="detail">备注：%1$s</string>
+    <string name="change_to">改为 %1$s</string>
+    <string name="type_task">输入任务</string>
+    <string name="type_example">例如：明天下午三点开会</string>
+    <string name="parse">解析</string>
+    <string name="vocabulary">专有名词</string>
+    <string name="suggest_title">加入专有名词？以后会自动纠正</string>
+    <string name="spelling">正确写法</string>
+    <string name="heard_as">常被听成</string>
+    <string name="add">加入</string>
+    <string name="no_thanks">不用</string>
+    <string name="spelling_example">正确写法，如：腾讯</string>
+    <string name="heard_as_optional">常被听成（可不填，多个用逗号分开）</string>
+    <string name="add_term">添加</string>
+    <string name="heard_as_list">常被听成：%1$s</string>
+    <string name="delete">删除</string>
+    <string name="back">‹ 返回</string>
+    <string name="settings">设置</string>
+    <string name="section_speech">语音包</string>
+    <string name="section_permissions">提醒权限</string>
+    <string name="section_recordings">录音</string>
+    <string name="section_language">语言</string>
+    <string name="section_update">更新</string>
+    <string name="section_about">关于</string>
+    <string name="pack_languages">中文 · 英文 · 粤语 · 日语 · 韩语</string>
+    <string name="download">下载</string>
+    <string name="pause">暂停</string>
+    <string name="resume">继续</string>
+    <string name="retry">重试</string>
+    <string name="installed">已安装</string>
+    <string name="using_mobile_data">正在使用移动数据</string>
+    <string name="delete_pack_title">删除语音包？</string>
+    <string name="delete_pack_text">删除后不能语音输入，需要重新下载 %1$s。</string>
+    <string name="perm_notifications">通知</string>
+    <string name="perm_exact_alarms">精确闹钟</string>
+    <string name="perm_battery">后台运行（不受电池优化限制）</string>
+    <string name="perm_autostart">自启动（小米、华为、OPPO、vivo 等）</string>
+    <string name="perm_on">已开启</string>
+    <string name="perm_turn_on">去开启</string>
+    <string name="perm_open">去设置</string>
+    <string name="done_recordings">已完成任务的录音</string>
+    <string name="recordings_size">%1$d 条 · %2$s</string>
+    <string name="delete_all">全部删除</string>
+    <string name="delete_recordings_title">删除已完成任务的录音？</string>
+    <string name="delete_recordings_text">共 %1$d 条，任务本身保留。</string>
+    <string name="lang_system">跟随系统</string>
+    <string name="current_version">当前版本 %1$s</string>
+    <string name="check_update">检查更新</string>
+    <string name="help">软件说明</string>
+    <string name="homepage">项目主页</string>
+    <string name="update_checking">正在检查更新…</string>
+    <string name="update_latest">已经是最新版本 %1$s</string>
+    <string name="ok">好</string>
+    <string name="update_available">发现新版本 %1$s（%2$s）</string>
+    <string name="update_metered">当前在用移动数据，建议连上 Wi-Fi 再下载</string>
+    <string name="update_install">下载并安装</string>
+    <string name="update_skip">跳过此版本</string>
+    <string name="update_downloading">正在下载 %1$s：%2$s / %3$s</string>
+    <string name="update_installing">正在安装 %1$s，请在系统弹窗中确认…</string>
+    <string name="close">关闭</string>
+    <string name="update_check_failed">检查更新失败：%1$s</string>
+    <string name="update_allow_install">请允许本应用“安装未知应用”，然后再点一次安装</string>
+    <string name="update_failed">更新失败：%1$s</string>
+    <string name="install_incomplete">安装没有完成：%1$s</string>
+    <string name="install_cancelled">已取消</string>
+    <string name="install_error">错误 %1$d</string>
+    <string name="dl_http">下载失败 HTTP %1$d</string>
+    <string name="dl_size">文件大小不对（%1$d / %2$d）</string>
+    <string name="dl_checksum">文件校验失败，已删除，请重试</string>
+    <string name="dl_save">无法保存文件</string>
+    <string name="channel_name">任务提醒</string>
+    <string name="channel_desc">任务快到期和已到期时的提醒</string>
+    <string name="notif_overdue">已到期：%1$s</string>
+    <string name="notif_reminder">提醒</string>
+    <string name="notif_snooze">1小时后再提醒</string>
+    <string name="date_today">今天</string>
+    <string name="date_tomorrow">明天 %1$s</string>
+    <string name="date_day_after">后天 %1$s</string>
+    <string name="date_yesterday">昨天</string>
+    <string name="date_pattern">M月d日 EEE</string>
+    <string name="date_pattern_year">yyyy年M月d日 EEE</string>
+    <string name="due_deadline">%1$s 前</string>
+    <string name="due_start">%1$s 起</string>
+    <string name="lead_default">默认</string>
+    <string name="lead_on_time">准时</string>
+    <string name="lead_days">提前%1$d天</string>
+    <string name="lead_hours">提前%1$d小时</string>
+    <string name="lead_minutes">提前%1$d分钟</string>
+    <string name="warn_in_past">这个时间已经过去了</string>
+    <string name="warn_next_week">“下周”可能指本周，请确认是哪一天</string>
+    <string name="warn_am_pm">没说上午还是晚上，请确认</string>
+    <string name="warn_rolled">今天这个时间已过，已改为明天</string>
+    <string name="warn_weekday">日期和星期对不上，请确认</string>
+    <string name="warn_invalid">没有这一天，请重新选择日期</string>
+    <string name="warn_recurring">暂不支持重复任务，只记录了第一次</string>
+    <string name="help_input">输入</string>
+    <string name="help_tasks">任务</string>
+    <string name="help_time">时间怎么说</string>
+    <string name="help_confirm">确认</string>
+    <string name="help_vocab">专有名词</string>
+    <string name="help_reminders">提醒</string>
+    <string name="help_updates">更新</string>
+    <string-array name="help_input_lines">
+        <item>点一下底部输入框：打字，点「发送」。</item>
+        <item>长按输入框：说话，松开识别；按住时上滑取消。</item>
+        <item>语音需要先在「设置 → 语音包」下载，识别全程在手机上完成，不联网，支持中文和英文。</item>
+    </string-array>
+    <string-array name="help_tasks_lines">
+        <item>向左滑：完成；对已完成的任务向左滑：恢复。</item>
+        <item>向右滑：删除，底部会出现「撤销」。</item>
+        <item>说出来的任务会保留录音，点 ▶ 播放；一句话拆成几条任务时共用一段录音。</item>
+        <item>「设置 → 录音」可以一次删除所有已完成任务的录音，任务本身保留。</item>
+    </string-array>
+    <string-array name="help_time_lines">
+        <item>日期：明天、后天、周五、下周三、11月5号、月底、国庆前、三天后、两周内。</item>
+        <item>时刻：下午三点、三点半、15:30、晚上八点、下班前、睡前。</item>
+        <item>“之前 / 前 / 截止”是截止时间，“之后 / 以后”是开始时间。</item>
+        <item>提醒：“提前半小时提醒我”“前一天提醒我”。</item>
+        <item>一句话可以说几件事，用“还有”“然后”隔开。</item>
+        <item>英文也可以：tomorrow at 3pm、by Friday、next Monday、in 2 hours、remind me 30 minutes before。</item>
+    </string-array>
+    <string-array name="help_confirm_lines">
+        <item>保存前会显示识别结果，标题、日期、时间都能改。</item>
+        <item>有拿不准的地方会标黄，并给出备选，点一下就能改。</item>
+        <item>语气词、改口、专有名词的纠正会列在顶部，点「撤回」恢复原话。</item>
+    </string-array>
+    <string-array name="help_vocab_lines">
+        <item>在菜单「专有名词」里添加公司名、人名、地名，发音相同的字会自动改成你的写法。</item>
+        <item>英文名或读音对不上的词，可以填它“常被听成”什么。</item>
+        <item>在确认卡片上手动改了名字，保存后会询问是否加入。</item>
+    </string-array>
+    <string-array name="help_reminders_lines">
+        <item>带时刻的任务：提前 30 分钟（可改）和到点各提醒一次。</item>
+        <item>只有日期的任务：前一天 20:00 和当天 9:00 各提醒一次。</item>
+        <item>通知上可以直接「完成」或「1小时后再提醒」。</item>
+        <item>提醒要准时，需要在「设置 → 提醒权限」里全部开启；国产手机还要允许自启动。</item>
+    </string-array>
+    <string-array name="help_updates_lines">
+        <item>每天打开时自动检查一次，也可以在「设置 → 更新」手动检查。</item>
+        <item>联网只用于检查更新和下载语音包。</item>
+    </string-array>
+</resources>

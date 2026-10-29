@@ -104,4 +104,11 @@ class VocabularyTest {
         assertNull(suggestTerm("交季度报告", "交报告")) // only removed
         assertNull(suggestTerm("买菜", "去银行办理信用卡")) // rewritten
     }
+
+    @Test
+    fun `a Latin term fixes its own capitalization, whole words only`() {
+        assertEquals("call Bob tomorrow", fix("call bob tomorrow", Term("Bob")).text)
+        assertEquals("call bobby tomorrow", fix("call bobby tomorrow", Term("Bob")).text)
+        assertEquals(emptyList(), fix("call Bob", Term("Bob")).corrections)
+    }
 }

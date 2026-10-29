@@ -1,7 +1,10 @@
 package app.voicetodo.speech
 
 import android.content.Context
+import androidx.annotation.StringRes
+import app.voicetodo.R
 import app.voicetodo.net.Download
+import app.voicetodo.net.describe
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -13,7 +16,7 @@ import java.io.File
 data class PackFile(val name: String, val url: String, val size: Long, val sha256: String)
 
 /** A speech model the app can download: the recognizer is not in the APK, so updates stay small. */
-data class SpeechPack(val id: String, val name: String, val languages: String, val files: List<PackFile>) {
+data class SpeechPack(val id: String, val name: String, @StringRes val languages: Int, val files: List<PackFile>) {
     val size: Long get() = files.sumOf { it.size }
 }
 
@@ -32,7 +35,7 @@ sealed interface PackState {
  * version). Sizes and digests are pinned here, so a pack is only installed
  * if it is byte-for-byte the one this version was built against.
  */
-class SpeechPacks(context: Context, private val scope: CoroutineScope, private val onInstalled: (SpeechPack) -> Unit) {
+class SpeechPacks(private val context: Context, private val scope: CoroutineScope, private val onInstalled: (SpeechPack) -> Unit) {
     private val root = File(context.filesDir, "speech")
     val pack: SpeechPack = SENSEVOICE
 
@@ -60,7 +63,7 @@ class SpeechPacks(context: Context, private val scope: CoroutineScope, private v
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.value = PackState.Failed(e.message ?: e.javaClass.simpleName)
+                _state.value = PackState.Failed(e.describe(context))
             }
         }
     }
@@ -88,8 +91,8 @@ class SpeechPacks(context: Context, private val scope: CoroutineScope, private v
 
         val SENSEVOICE = SpeechPack(
             id = "sensevoice-int8-2025-09-09",
-            name = "SenseVoice 语音包",
-            languages = "中文 · 英文 · 粤语 · 日语 · 韩语",
+            name = "SenseVoice",
+            languages = R.string.pack_languages,
             files = listOf(
                 PackFile(
                     "model.int8.onnx", "$BASE/sensevoice-int8-2025-09-09.onnx", 237_115_547,

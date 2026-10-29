@@ -9,7 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
-import androidx.activity.ComponentActivity
+import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -22,7 +22,9 @@ import androidx.core.content.ContextCompat
 import app.voicetodo.parser.Term
 import app.voicetodo.reminder.Reminders
 
-class MainActivity : ComponentActivity() {
+// AppCompatActivity rather than ComponentActivity: it applies the in-app
+// language (Settings → Language) on Android versions below 13.
+class MainActivity : AppCompatActivity() {
     private val vm: MainViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {

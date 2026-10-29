@@ -1,5 +1,9 @@
 package app.voicetodo.net
 
+import android.content.Context
+import androidx.annotation.StringRes
+import app.voicetodo.R
+import app.voicetodo.localized
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -14,6 +18,13 @@ import java.security.MessageDigest
  * partial `<dest>.part` with a Range request, then checks size and SHA-256
  * before renaming it into place, so `dest` existing means it is complete.
  */
+/** A download failure whose message is a string resource, so it can be shown in either language. */
+class DownloadError(@StringRes val text: Int, vararg val args: Any) : Exception()
+
+/** The message for any failure: a [DownloadError] in the app's language, anything else as Java put it. */
+fun Throwable.describe(context: Context): String =
+    if (this is DownloadError) context.localized().getString(text, *args) else message ?: javaClass.simpleName
+
 object Download {
     const val USER_AGENT = "VoiceTodo"
 
@@ -38,7 +49,7 @@ object Download {
                 when (conn.responseCode) {
                     206 -> Unit
                     200 -> { have = 0; part.delete() } // Server ignored the range; start over.
-                    else -> error("下载失败 HTTP ${conn.responseCode}")
+                    else -> throw DownloadError(R.string.dl_http, conn.responseCode)
                 }
                 conn.inputStream.use { input ->
                     FileOutputStream(part, have > 0).use { out ->
@@ -61,12 +72,12 @@ object Download {
                 conn.disconnect()
             }
         }
-        if (part.length() != size) error("文件大小不对（${part.length()} / $size）")
+        if (part.length() != size) throw DownloadError(R.string.dl_size, part.length(), size)
         if (sha256 != null && !sha256(part).equals(sha256, ignoreCase = true)) {
             part.delete()
-            error("文件校验失败，已删除，请重试")
+            throw DownloadError(R.string.dl_checksum)
         }
-        if (!part.renameTo(dest)) error("无法保存文件")
+        if (!part.renameTo(dest)) throw DownloadError(R.string.dl_save)
         onProgress(size)
         dest
     }

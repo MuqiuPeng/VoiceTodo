@@ -13,7 +13,7 @@ android {
         targetSdk = 36
         // The release tag is v<versionName>; the in-app updater compares
         // against it. versionCode follows from it so the two cannot drift.
-        val version = "0.6.0"
+        val version = "0.7.0"
         versionName = version
         versionCode = version.split('.').map(String::toInt).let { (a, b, c) -> a * 10000 + b * 100 + c }
 
@@ -69,6 +69,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
     implementation("androidx.core:core-ktx:1.18.0")
+    // Per-app language (中文 / English) on every Android version, not just 13+.
+    implementation("androidx.appcompat:appcompat:1.7.1")
 
     testImplementation(kotlin("test-junit5"))
     testImplementation("org.junit.jupiter:junit-jupiter:5.13.4")
