@@ -62,7 +62,8 @@ class QuickAddWidget : AppWidgetProvider() {
 
         private fun icon(context: Context) = RemoteViews(context.packageName, R.layout.widget_icon).apply {
             setImageViewResource(R.id.widget_icon, if (wallpaperIsDark(context)) R.drawable.widget_mark_light else R.drawable.widget_mark_dark)
-            setOnClickPendingIntent(R.id.widget_icon, open(context, ACTION_VOICE, 2))
+            // The whole cell is the target, not just the drawing.
+            setOnClickPendingIntent(R.id.widget_cell, open(context, ACTION_VOICE, 2))
         }
 
         private fun views(context: Context, manager: AppWidgetManager, id: Int): RemoteViews =
