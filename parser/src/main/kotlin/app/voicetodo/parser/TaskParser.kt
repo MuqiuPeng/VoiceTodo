@@ -25,23 +25,15 @@ class TaskParser(private val config: ParserConfig = ParserConfig()) {
      * in the titles afterwards. Mention spans index the placeholder form.
      */
     fun parse(input: String, now: LocalDateTime, protectedTerms: Collection<String> = emptyList()): ParseResult {
-        val terms = protectedTerms.filter { it.isNotBlank() }.distinct().sortedByDescending { it.length }
-            .take(PLACEHOLDERS)
-        var shielded = input
-        terms.forEachIndexed { i, t -> shielded = shielded.replace(t, (PLACEHOLDER_BASE + i).toString()) }
-        fun restore(s: String): String {
-            var r = s
-            terms.forEachIndexed { i, t -> r = r.replace((PLACEHOLDER_BASE + i).toString(), t) }
-            return r
-        }
-
-        val normalized = Normalizer.normalize(shielded)
+        val shield = Shield(protectedTerms)
+        val restore = shield::restore
+        val normalized = Normalizer.normalize(shield.hide(input))
         val scanner = Scanner(now.withSecond(0).withNano(0), config)
         val clauses = splitClauses(normalized, scanner).map { analyze(it, scanner, now) }
         val tasks = assemble(clauses).map { t ->
             t.copy(
                 title = restore(t.title),
-                detail = t.detail?.let(::restore),
+                detail = t.detail?.let(restore),
                 source = restore(t.source),
                 mentions = t.mentions.map { it.copy(text = restore(it.text)) },
             )
@@ -449,10 +441,6 @@ class TaskParser(private val config: ParserConfig = ParserConfig()) {
     }
 
     private companion object {
-        /** Private-use characters stand in for protected terms; nothing in the rules matches them. */
-        const val PLACEHOLDER_BASE = '\uE000'
-        const val PLACEHOLDERS = 0x1000
-
         const val STRONG_BREAK = "。！!？?；;\n"
         const val WEAK_BREAK = "，,"
         const val EDGE_PUNCT = "，,。.！!？?、；;:：~～-—"

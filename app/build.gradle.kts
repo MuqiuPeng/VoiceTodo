@@ -13,7 +13,7 @@ android {
         targetSdk = 36
         // The release tag is v<versionName>; the in-app updater compares
         // against it. versionCode follows from it so the two cannot drift.
-        val version = "0.2.0"
+        val version = "0.3.0"
         versionName = version
         versionCode = version.split('.').map(String::toInt).let { (a, b, c) -> a * 10000 + b * 100 + c }
 

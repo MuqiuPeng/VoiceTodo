@@ -7,7 +7,9 @@ import app.voicetodo.VoiceTodoApp
 import app.voicetodo.data.Task
 import app.voicetodo.data.TaskStore
 import app.voicetodo.data.VocabularyStore
+import app.voicetodo.parser.Cleaned
 import app.voicetodo.parser.Correction
+import app.voicetodo.parser.Disfluency
 import app.voicetodo.parser.Term
 import app.voicetodo.parser.VocabularyCorrector
 import app.voicetodo.parser.suggestTerm
@@ -53,7 +55,11 @@ data class Confirmation(
     /** What the recognizer actually wrote, for undoing the corrections. */
     val heard: String = transcript,
     val corrections: List<Correction> = emptyList(),
-)
+    /** Hesitations and self-corrections taken out before parsing. */
+    val cleaned: Cleaned? = null,
+) {
+    val tidied: Boolean get() = corrections.isNotEmpty() || cleaned?.changed == true
+}
 
 sealed interface Capture {
     data object Idle : Capture
@@ -126,14 +132,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Applies the user's vocabulary, then parses. With `correct = false` the
-     * misheard words stay as heard (the undo on the confirmation card), but
-     * the vocabulary still keeps its terms from being read as times.
+     * Strips hesitations, applies the user's vocabulary, then parses. With
+     * `correct = false` (the undo on the confirmation card) the text stays as
+     * heard, but vocabulary terms are still kept from being read as times.
      */
     fun parseText(heard: String, correct: Boolean = true) {
         val terms = vocabulary.terms.value
-        val corrected = if (correct) VocabularyCorrector(terms).correct(heard) else null
-        val text = corrected?.text ?: heard
+        val cleaned = if (correct) Disfluency.clean(heard, terms.map { it.text }) else null
+        // All filler ("嗯嗯") leaves nothing; better to show what was heard than an empty card.
+        val base = cleaned?.text?.ifBlank { null } ?: heard
+        val corrected = if (correct) VocabularyCorrector(terms).correct(base) else null
+        val text = corrected?.text ?: base
         val result = parser.parse(text, LocalDateTime.now(), terms.map { it.text })
         val drafts = result.tasks.mapIndexed { i, t ->
             Draft(
@@ -150,7 +159,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 alternatives = t.alternatives,
             )
         }.ifEmpty { listOf(blankDraft(text)) }
-        _confirmation.value = Confirmation(text, drafts, heard, corrected?.corrections ?: emptyList())
+        _confirmation.value = Confirmation(text, drafts, heard, corrected?.corrections ?: emptyList(), cleaned)
     }
 
     fun undoCorrections() {

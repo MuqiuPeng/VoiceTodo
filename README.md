@@ -33,6 +33,15 @@ are fixed after recognition instead (`parser/.../Vocabulary.kt`):
   it, with what was heard as its alias. Corrections are listed on the card
   with an undo.
 
+### Hesitations (语气词和改口)
+
+Before vocabulary correction, `Disfluency.kt` removes filler sounds (嗯, 呃),
+filler words where a pause marks them as filler (那个, 就是说 — but not
+"那个方案"), stutters (我我我, 明天明天) and self-corrections ("明天，不对，
+后天" keeps 后天; "下午三点不是四点" keeps 下午). Recognizers often drop the
+pauses, so a bare 不对/不是 between two times of the same kind also counts as a
+correction. The confirmation card lists what was removed, with an undo.
+
 The pinyin table is generated from Unicode's Unihan data by
 `scripts/gen-pinyin.py` (Unicode License v3).
 

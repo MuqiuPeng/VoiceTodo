@@ -509,10 +509,10 @@ private fun ConfirmScreen(c: Confirmation, vm: MainViewModel) {
             )
             TextButton(onClick = { editingTranscript = true }) { Text("改文字") }
         }
-        if (c.corrections.isNotEmpty()) {
+        if (c.tidied) {
             Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "已按专有名词纠正：" + c.corrections.joinToString("，") { "${it.from}→${it.to}" },
+                    tidySummary(c),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
@@ -543,6 +543,13 @@ private fun ConfirmScreen(c: Confirmation, vm: MainViewModel) {
         )
     }
 }
+
+/** "去掉 嗯、那个 · 改口 明天→后天 · 纠正 疼讯→腾讯" — what the undo next to it would bring back. */
+private fun tidySummary(c: Confirmation): String = buildList {
+    c.cleaned?.fillers?.distinct()?.takeIf { it.isNotEmpty() }?.let { add("去掉 " + it.joinToString("、")) }
+    c.cleaned?.repairs?.takeIf { it.isNotEmpty() }?.let { r -> add("改口 " + r.joinToString("，") { "${it.first}→${it.second}" }) }
+    if (c.corrections.isNotEmpty()) add("纠正 " + c.corrections.joinToString("，") { "${it.from}→${it.to}" })
+}.joinToString(" · ", prefix = "已整理：")
 
 private val LEADS: List<Duration?> = listOf(
     null, Duration.ZERO, Duration.ofMinutes(10), Duration.ofMinutes(30),
