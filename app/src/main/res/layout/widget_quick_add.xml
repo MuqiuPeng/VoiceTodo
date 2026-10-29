@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Looks like the app's input bar: tap it to type, tap the mic to talk. -->
+<!-- Wider than one cell: the app's input bar. Tap it to type, tap the icon to talk. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_bar"
     android:layout_width="match_parent"
@@ -26,8 +26,8 @@
         android:id="@+id/widget_mic"
         android:layout_width="44dp"
         android:layout_height="44dp"
-        android:background="@drawable/widget_mic_bg"
         android:contentDescription="@string/input_hint"
-        android:padding="10dp"
-        android:src="@drawable/ic_widget_mic" />
+        android:padding="5dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/widget_bar_mark" />
 </LinearLayout>

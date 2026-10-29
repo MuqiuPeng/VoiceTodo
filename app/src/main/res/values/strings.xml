@@ -144,7 +144,7 @@
         <item>Spoken tasks keep their recording; tap ▶ to play it. Tasks from one sentence share one recording.</item>
         <item>Settings → Recordings deletes the recordings of all completed tasks; the tasks stay.</item>
         <item>Tap a task to give it a topic by hand. Topics (menu → Topics) colour tasks automatically by their keywords; nothing is split into separate lists.</item>
-        <item>Home-screen widget: adds tasks without opening the app. Tap the bar for a small panel to type in (or hold its field to talk); tap the mic to talk right away — it stops when you finish, or tap ■. A widget itself cannot be long-pressed; Android keeps that for moving it.</item>
+        <item>Home-screen widget: adds tasks without opening the app. Tap the bar for a small panel to type in (or hold its field to talk); tap the icon to talk right away. Shrink it to one cell and it becomes just the icon — it stops when you finish, or tap ■. A widget itself cannot be long-pressed; Android keeps that for moving it.</item>
     </string-array>
     <string-array name="help_time_lines">
         <item>Dates: today, tomorrow, Friday, next Wednesday, Nov 5, end of the month, in 3 days, within 2 weeks.</item>

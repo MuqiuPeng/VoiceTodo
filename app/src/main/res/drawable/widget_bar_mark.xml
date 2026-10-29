@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- On the bar, which is light by day and dark at night. -->
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android" android:src="@drawable/widget_mark_dark" />

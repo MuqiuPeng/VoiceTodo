@@ -45,6 +45,7 @@ class VoiceTodoApp : Application() {
         packs = SpeechPacks(this, scope, onActiveChanged = ::loadSpeech)
         loadSpeech(packs.active.value)
         QuickAddWidget.updateAll(this)
+        QuickAddWidget.watchWallpaper(this)
         // A delete whose undo never expired (app killed) leaves its recording behind.
         scope.launch { recordings.deleteOrphans(TaskStore.get(this@VoiceTodoApp).tasks.value) }
         // Covers alarms lost to a force-stop, which sends no broadcast.
