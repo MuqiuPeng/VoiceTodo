@@ -97,6 +97,11 @@ fun AppScreen(vm: MainViewModel, setup: () -> SetupState, openSetting: (SetupIte
     // The widget lands on the home screen, whatever page was open.
     val quick by vm.quick.collectAsState()
     LaunchedEffect(quick) { if (quick != null) page = Page.HOME }
+    val requested by vm.requestedPage.collectAsState()
+    LaunchedEffect(requested) {
+        requested?.let { page = it }
+        vm.pageHandled()
+    }
     // A dot on the menu and on 设置 when something there wants the user.
     val attention = !setupState.complete || update is UpdateState.Available || engine == EngineState.Missing
 

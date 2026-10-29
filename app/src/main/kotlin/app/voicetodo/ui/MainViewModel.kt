@@ -224,6 +224,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _quick.value = null
     }
 
+    private val _page = MutableStateFlow<Page?>(null)
+
+    /** A page another entry point asked for (the quick-add panel opening Settings). */
+    val requestedPage: StateFlow<Page?> = _page
+
+    fun requestPage(p: Page) {
+        _page.value = p
+    }
+
+    fun pageHandled() {
+        _page.value = null
+    }
+
     /** Debug builds only: feed a WAV instead of the microphone (the emulator has no voice). */
     fun recognizeFile(path: String) = viewModelScope.launch {
         voiceApp.engineState.first { it != VoiceTodoApp.EngineState.Loading }

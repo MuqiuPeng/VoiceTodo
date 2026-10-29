@@ -490,7 +490,7 @@ private fun TopicPicker(topics: List<Topic>, current: Topic?, onPick: (Topic?) -
  * selection still works when editing.
  */
 @Composable
-private fun InputBar(vm: MainViewModel, openSettings: () -> Unit) {
+fun InputBar(vm: MainViewModel, openSettings: () -> Unit) {
     val context = LocalContext.current
     val engine by vm.engineState.collectAsState()
     val capture by vm.capture.collectAsState()

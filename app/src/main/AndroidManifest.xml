@@ -32,6 +32,16 @@
             </intent-filter>
         </activity>
 
+        <!-- Its own task, so closing it goes back to the home screen, not the app. -->
+        <activity
+            android:name=".ui.QuickAddActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="app.voicetodo.quick"
+            android:theme="@style/Theme.VoiceTodo.Quick"
+            android:windowSoftInputMode="adjustResize" />
+
         <receiver
             android:name=".widget.QuickAddWidget"
             android:exported="true">

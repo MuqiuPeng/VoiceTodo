@@ -57,6 +57,9 @@ class MainActivity : AppCompatActivity() {
         when (intent?.action) {
             QuickAddWidget.ACTION_TYPE -> vm.requestQuick(MainViewModel.Quick.TYPE)
             QuickAddWidget.ACTION_VOICE -> vm.requestQuick(MainViewModel.Quick.VOICE)
+            // From the quick-add panel: finish the job in the full app.
+            ACTION_EDIT -> intent.getStringExtra(EXTRA_TEXT)?.let { vm.parseTyped(it) }
+            ACTION_SETTINGS -> vm.requestPage(Page.SETTINGS)
             else -> return
         }
         // Handled once: a rotation must not start another recording.
@@ -107,3 +110,7 @@ data class SetupState(val notifications: Boolean, val exactAlarms: Boolean, val 
 }
 
 enum class SetupItem { EXACT_ALARMS, BATTERY, APP_DETAILS }
+
+const val ACTION_EDIT = "app.voicetodo.EDIT"
+const val ACTION_SETTINGS = "app.voicetodo.SETTINGS"
+const val EXTRA_TEXT = "text"

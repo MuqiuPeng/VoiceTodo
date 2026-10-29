@@ -20,8 +20,11 @@ OpenAI-compatible endpoint to refine parsing when online is planned, not built.
   recording (16 kHz WAV, shared by all tasks from one utterance). Topics
   (name, colour, keywords) colour tasks automatically — computed when shown,
   so editing a topic recolours everything; tapping a task overrides it. A
-  home-screen widget opens the app ready to type, or recording hands-free
-  (a widget cannot be held down, so it stops on ~1.6 s of silence). Speech →
+  home-screen widget adds tasks without opening the app: it opens a small
+  panel over the home screen (`QuickAddActivity`, its own task) to type in or
+  hold to talk, or recording hands-free from the mic (a widget cannot be
+  long-pressed, so that stops on ~1.6 s of silence), with a compact
+  confirmation and ✓ to save. Speech →
   SenseVoice int8 via sherpa-onnx, fully offline → parser → confirmation
   card → SQLite → one exact alarm per task (lead time, then due time;
   date-only tasks the evening before and the morning of). Notifications
