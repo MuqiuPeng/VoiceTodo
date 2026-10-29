@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -29,7 +28,17 @@ import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -136,12 +145,14 @@ private fun HomeWithDrawer(vm: MainViewModel, attention: Boolean, open: (Page) -
                 )
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.vocabulary)) },
+                    icon = { Icon(Icons.Filled.Edit, null) },
                     selected = false,
                     onClick = { go(Page.VOCABULARY) },
                     modifier = Modifier.padding(horizontal = 12.dp),
                 )
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.settings)) },
+                    icon = { Icon(Icons.Filled.Settings, null) },
                     selected = false,
                     badge = { if (attention) Dot() },
                     onClick = { go(Page.SETTINGS) },
@@ -170,26 +181,21 @@ private fun Dot() {
     Box(Modifier.size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error))
 }
 
-/** Three bars, drawn rather than taken from an icon library for one glyph. */
 @Composable
 private fun MenuButton(attention: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier.size(48.dp).clip(CircleShape).clickable(onClickLabel = stringResource(R.string.menu), onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            repeat(3) {
-                Box(Modifier.width(20.dp).height(2.dp).clip(RoundedCornerShape(1.dp)).background(MaterialTheme.colorScheme.onSurface))
-            }
-        }
-        if (attention) Box(Modifier.offset(x = 12.dp, y = (-10).dp)) { Dot() }
+    Box {
+        IconButton(onClick = onClick) { Icon(Icons.Filled.Menu, stringResource(R.string.menu)) }
+        if (attention) Box(Modifier.align(Alignment.TopEnd).padding(top = 10.dp, end = 10.dp)) { Dot() }
     }
 }
 
+/** A back chevron and the page title; no "Back" written out. */
 @Composable
 fun PageHeader(title: String, onBack: () -> Unit) {
     Row(Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
+        IconButton(onClick = onBack) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(R.string.back), Modifier.size(32.dp))
+        }
         Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
     }
 }
@@ -257,7 +263,7 @@ private fun SettingsScreen(
                 Card(Modifier.fillMaxWidth()) {
                     Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.current_version, "v${vm.updater.currentVersion}"), Modifier.weight(1f))
-                        TextButton(onClick = { vm.updater.check() }) { Text(stringResource(R.string.check_update)) }
+                        IconButton(onClick = { vm.updater.check() }) { Icon(Icons.Filled.Refresh, stringResource(R.string.check_update)) }
                     }
                 }
             }
@@ -299,7 +305,7 @@ private fun PackCard(vm: MainViewModel, state: PackState) {
                     is PackState.Downloading -> OutlinedButton(onClick = vm.packs::pause) { Text(stringResource(R.string.pause)) }
                     is PackState.Paused -> Button(onClick = vm.packs::download) { Text(stringResource(R.string.resume)) }
                     is PackState.Failed -> Button(onClick = vm.packs::download) { Text(stringResource(R.string.retry)) }
-                    PackState.Installed -> TextButton(onClick = { confirmDelete = true }) { Text(stringResource(R.string.delete)) }
+                    PackState.Installed -> IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Filled.Delete, stringResource(R.string.delete)) }
                 }
             }
             when (state) {
@@ -316,8 +322,7 @@ private fun PackCard(vm: MainViewModel, state: PackState) {
                     }
                 }
                 is PackState.Failed -> Text(state.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                PackState.Installed -> Text(stringResource(R.string.installed), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                PackState.NotInstalled -> Unit
+                PackState.Installed, PackState.NotInstalled -> Unit
             }
         }
     }
@@ -373,7 +378,7 @@ private fun RecordingsCard(vm: MainViewModel) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            TextButton(enabled = names.isNotEmpty(), onClick = { confirm = true }) { Text(stringResource(R.string.delete_all)) }
+            IconButton(enabled = names.isNotEmpty(), onClick = { confirm = true }) { Icon(Icons.Filled.Delete, stringResource(R.string.delete_all)) }
         }
     }
     if (confirm) {
@@ -393,9 +398,11 @@ private fun PermissionRow(label: String, granted: Boolean?, onClick: () -> Unit)
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f).padding(vertical = 12.dp), style = MaterialTheme.typography.bodyMedium)
         if (granted == true) {
-            Text(stringResource(R.string.perm_on), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 12.dp))
+            Icon(Icons.Filled.Check, stringResource(R.string.perm_on), Modifier.padding(12.dp), tint = MaterialTheme.colorScheme.primary)
         } else {
-            TextButton(onClick = onClick) { Text(stringResource(if (granted == null) R.string.perm_open else R.string.perm_turn_on)) }
+            IconButton(onClick = onClick) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(if (granted == null) R.string.perm_open else R.string.perm_turn_on))
+            }
         }
     }
 }
@@ -407,7 +414,7 @@ private fun LinkRow(label: String, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, Modifier.weight(1f))
-        Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

@@ -17,13 +17,9 @@
     <string name="swipe_done">完成</string>
     <string name="swipe_restore">恢复</string>
     <string name="overdue">已到期 · %1$s</string>
-    <string name="stop">■ 停止</string>
-    <string name="confirm_title">确认任务</string>
     <string name="edit_text">改文字</string>
-    <string name="revert">撤回</string>
     <string name="cancel">取消</string>
     <string name="save">保存</string>
-    <string name="save_n">保存 %1$d 条</string>
     <string name="tidy_prefix">已整理：%1$s</string>
     <string name="tidy_fillers">去掉 %1$s</string>
     <string name="tidy_repairs">改口 %1$s</string>
@@ -64,7 +60,6 @@
     <string name="pause">暂停</string>
     <string name="resume">继续</string>
     <string name="retry">重试</string>
-    <string name="installed">已安装</string>
     <string name="using_mobile_data">正在使用移动数据</string>
     <string name="delete_pack_title">删除语音包？</string>
     <string name="delete_pack_text">删除后不能语音输入，需要重新下载 %1$s。</string>

@@ -29,6 +29,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -48,7 +52,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -108,6 +125,7 @@ private val Amber = Color(0xFFB26A00)
 
 // --- home -------------------------------------------------------------------
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(vm: MainViewModel, menu: @Composable () -> Unit, openSettings: () -> Unit) {
     val tasks by vm.tasks.collectAsState()
@@ -122,16 +140,37 @@ fun HomeScreen(vm: MainViewModel, menu: @Composable () -> Unit, openSettings: ()
         if (r == SnackbarResult.ActionPerformed) vm.undoDelete(t) else vm.finishDelete(t)
     }
 
+    val focusManager = LocalFocusManager.current
+    // The input field only takes a long press (talk) while it is not focused,
+    // so it must not stay focused once the user is done with it: closing the
+    // keyboard with Back drops focus too.
+    val imeVisible = WindowInsets.isImeVisible
+    LaunchedEffect(imeVisible) { if (!imeVisible) focusManager.clearFocus() }
+
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
-        Box(Modifier.padding(start = 8.dp, top = 8.dp)) { menu() }
-        LazyColumn(
-            Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        Column(
+            Modifier
+                .weight(1f)
+                // Any touch above the input bar ends typing. Watched in the
+                // Initial pass and never consumed, so the list, swipes and
+                // buttons underneath still get the touch as usual.
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        focusManager.clearFocus()
+                    }
+                },
         ) {
-            items(suggestions, key = { "suggest-" + it.text }) { SuggestionCard(it, vm) }
-            // One list: open tasks first (by due time), completed ones after, dimmed rather than set apart.
-            items(tasks, key = { it.id }) { TaskRow(it, today, vm) }
+            Box(Modifier.padding(start = 8.dp, top = 8.dp)) { menu() }
+            LazyColumn(
+                Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(suggestions, key = { "suggest-" + it.text }) { SuggestionCard(it, vm) }
+                // One list: open tasks first (by due time), completed ones after, dimmed rather than set apart.
+                items(tasks, key = { it.id }) { TaskRow(it, today, vm) }
+            }
         }
         SnackbarHost(snackbar)
         InputBar(vm, openSettings)
@@ -199,8 +238,8 @@ private fun SuggestionCard(suggestion: Term, vm: MainViewModel) {
                 Button(enabled = text.isNotBlank(), onClick = {
                     vm.addTerm(Term(text.trim(), splitAliases(heard)))
                     vm.dismissSuggestion(suggestion)
-                }) { Text(stringResource(R.string.add)) }
-                TextButton(onClick = { vm.dismissSuggestion(suggestion) }) { Text(stringResource(R.string.no_thanks)) }
+                }) { Icon(Icons.Filled.Check, stringResource(R.string.add)) }
+                OutlinedButton(onClick = { vm.dismissSuggestion(suggestion) }) { Icon(Icons.Filled.Close, stringResource(R.string.no_thanks)) }
             }
         }
     }
@@ -230,7 +269,7 @@ fun VocabularyScreen(vm: MainViewModel, onBack: () -> Unit) {
                             vm.addTerm(Term(text.trim(), splitAliases(heard)))
                             text = ""
                             heard = ""
-                        }) { Text(stringResource(R.string.add_term)) }
+                        }) { Icon(Icons.Filled.Add, stringResource(R.string.add_term)) }
                     }
                 }
             }
@@ -247,7 +286,7 @@ fun VocabularyScreen(vm: MainViewModel, onBack: () -> Unit) {
                                 )
                             }
                         }
-                        TextButton(onClick = { vm.deleteTerm(t.text) }) { Text(stringResource(R.string.delete)) }
+                        IconButton(onClick = { vm.deleteTerm(t.text) }) { Icon(Icons.Filled.Delete, stringResource(R.string.delete)) }
                     }
                 }
             }
@@ -290,7 +329,12 @@ private fun TaskRow(task: Task, today: LocalDate, vm: MainViewModel) {
                     contentAlignment = if (deleting) Alignment.CenterStart else Alignment.CenterEnd,
                 ) {
                     if (deleting || completing) {
-                        Text(
+                        Icon(
+                            when {
+                                deleting -> Icons.Filled.Delete
+                                task.done -> Icons.Filled.Refresh
+                                else -> Icons.Filled.Check
+                            },
                             stringResource(
                                 when {
                                     deleting -> R.string.swipe_delete
@@ -298,8 +342,7 @@ private fun TaskRow(task: Task, today: LocalDate, vm: MainViewModel) {
                                     else -> R.string.swipe_done
                                 },
                             ),
-                            color = if (deleting) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
-                            fontWeight = FontWeight.SemiBold,
+                            tint = if (deleting) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
                         )
                     }
                 }
@@ -367,7 +410,12 @@ private fun TaskRow(task: Task, today: LocalDate, vm: MainViewModel) {
                     }
                     task.audio?.let { audio ->
                         TextButton(onClick = { vm.recordings.toggle(audio) }) {
-                            Text(if (playing == audio) stringResource(R.string.stop) else "▶ " + vm.recordings.seconds(audio).let { "%d:%02d".format(it / 60, it % 60) })
+                            if (playing == audio) {
+                                Box(Modifier.size(14.dp).background(MaterialTheme.colorScheme.primary))
+                            } else {
+                                Icon(Icons.Filled.PlayArrow, null, Modifier.size(20.dp))
+                                Text(vm.recordings.seconds(audio).let { "%d:%02d".format(it / 60, it % 60) })
+                            }
                         }
                     }
                 }
@@ -548,8 +596,8 @@ private fun InputBar(vm: MainViewModel, openSettings: () -> Unit) {
                 }
                 if (text.isNotBlank() && !recording) {
                     Spacer(Modifier.width(8.dp))
-                    Button(onClick = ::submit, shape = CircleShape, contentPadding = PaddingValues(horizontal = 18.dp)) {
-                        Text(stringResource(R.string.send))
+                    FilledIconButton(onClick = ::submit, modifier = Modifier.size(52.dp)) {
+                        Icon(Icons.AutoMirrored.Filled.Send, stringResource(R.string.send))
                     }
                 }
             }
@@ -583,20 +631,14 @@ fun ConfirmScreen(c: Confirmation, vm: MainViewModel) {
     var editingTranscript by remember { mutableStateOf(false) }
     val count = c.drafts.count { it.include && it.title.isNotBlank() }
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
-        Text(
-            stringResource(R.string.confirm_title),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(start = 20.dp, top = 16.dp),
-        )
-        Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(start = 20.dp, end = 8.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "“${c.transcript}”",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = { editingTranscript = true }) { Text(stringResource(R.string.edit_text)) }
+            IconButton(onClick = { editingTranscript = true }) { Icon(Icons.Filled.Edit, stringResource(R.string.edit_text)) }
         }
         if (c.tidied) {
             Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -606,7 +648,8 @@ fun ConfirmScreen(c: Confirmation, vm: MainViewModel) {
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = vm::undoCorrections) { Text(stringResource(R.string.revert)) }
+                // No undo glyph in the core icon set; ↺ reads as one.
+                IconButton(onClick = vm::undoCorrections) { Text("↺", fontSize = 22.sp, color = MaterialTheme.colorScheme.primary) }
             }
         }
         LazyColumn(
@@ -618,9 +661,13 @@ fun ConfirmScreen(c: Confirmation, vm: MainViewModel) {
         }
         HorizontalDivider()
         Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = vm::dismissConfirmation, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.cancel)) }
+            OutlinedButton(onClick = vm::dismissConfirmation, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Filled.Close, stringResource(R.string.cancel))
+            }
             Button(onClick = vm::saveConfirmation, enabled = count > 0, modifier = Modifier.weight(1f)) {
-                Text(if (count > 1) stringResource(R.string.save_n, count) else stringResource(R.string.save))
+                Icon(Icons.Filled.Check, stringResource(R.string.save))
+                // Several tasks: the count says how many will be saved.
+                if (count > 1) Text("  $count")
             }
         }
     }
@@ -685,10 +732,16 @@ private fun DraftCard(d: Draft, multiple: Boolean, vm: MainViewModel) {
                         }, base.hour, base.minute, true).show()
                     },
                     label = { Text(d.time?.let(::describeTime) ?: stringResource(R.string.any_time)) },
+                    trailingIcon = if (d.time != null) {
+                        {
+                            Icon(
+                                Icons.Filled.Close,
+                                stringResource(R.string.clear_time),
+                                Modifier.size(18.dp).clickable { edit { it.copy(time = null) } },
+                            )
+                        }
+                    } else null,
                 )
-                if (d.time != null) {
-                    AssistChip(onClick = { edit { it.copy(time = null) } }, label = { Text(stringResource(R.string.clear_time)) })
-                }
                 if (d.date != null) {
                     val deadline = d.kind == MentionKind.DEADLINE
                     FilterChip(

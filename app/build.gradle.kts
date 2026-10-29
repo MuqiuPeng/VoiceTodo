@@ -13,7 +13,7 @@ android {
         targetSdk = 36
         // The release tag is v<versionName>; the in-app updater compares
         // against it. versionCode follows from it so the two cannot drift.
-        val version = "0.7.0"
+        val version = "0.7.1"
         versionName = version
         versionCode = version.split('.').map(String::toInt).let { (a, b, c) -> a * 10000 + b * 100 + c }
 
@@ -64,6 +64,7 @@ dependencies {
     implementation(platform("androidx.compose:compose-bom:2026.08.00"))
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.activity:activity-compose:1.12.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")

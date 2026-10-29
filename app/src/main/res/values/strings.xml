@@ -18,13 +18,9 @@
     <string name="swipe_done">Done</string>
     <string name="swipe_restore">Restore</string>
     <string name="overdue">Overdue · %1$s</string>
-    <string name="stop">■ Stop</string>
-    <string name="confirm_title">Confirm</string>
     <string name="edit_text">Edit text</string>
-    <string name="revert">Revert</string>
     <string name="cancel">Cancel</string>
     <string name="save">Save</string>
-    <string name="save_n">Save %1$d</string>
     <string name="tidy_prefix">Tidied: %1$s</string>
     <string name="tidy_fillers">removed %1$s</string>
     <string name="tidy_repairs">self-corrections %1$s</string>
@@ -65,7 +61,6 @@
     <string name="pause">Pause</string>
     <string name="resume">Resume</string>
     <string name="retry">Retry</string>
-    <string name="installed">Installed</string>
     <string name="using_mobile_data">Using mobile data</string>
     <string name="delete_pack_title">Delete speech pack?</string>
     <string name="delete_pack_text">Voice input will stop working until you download %1$s again.</string>
