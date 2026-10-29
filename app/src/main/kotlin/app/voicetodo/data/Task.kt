@@ -25,6 +25,8 @@ data class Task(
     val lastNotified: LocalDateTime? = null,
     /** File name of the recording it was spoken in, under [Recordings]; null if typed. */
     val audio: String? = null,
+    /** A topic chosen by hand (its id; "" = none on purpose). Null: classified automatically. */
+    val topic: String? = null,
 ) {
     val dueAt: LocalDateTime? get() = dueDate?.atTime(dueTime ?: LocalTime.of(23, 59))
 }

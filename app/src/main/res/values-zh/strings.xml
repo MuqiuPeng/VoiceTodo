@@ -142,6 +142,8 @@
         <item>向右滑：删除，底部会出现「撤销」。</item>
         <item>说出来的任务会保留录音，点 ▶ 播放；一句话拆成几条任务时共用一段录音。</item>
         <item>「设置 → 录音」可以一次删除所有已完成任务的录音，任务本身保留。</item>
+        <item>点一下任务可以手动选主题。主题（菜单 → 主题）按关键词自动给任务上色，不会拆成单独的列表。</item>
+        <item>桌面小部件：点输入条打字，点麦克风说话。从小部件说话时说完会自动结束，也可以点 ■。</item>
     </string-array>
     <string-array name="help_time_lines">
         <item>日期：明天、后天、周五、下周三、11月5号、月底、国庆前、三天后、两周内。</item>
@@ -176,4 +178,12 @@
     <string name="pack_recommended">推荐</string>
     <string name="pack_in_use">使用中</string>
     <string name="no_sound">没录到声音，请检查麦克风权限后再试</string>
+    <string name="topics">主题</string>
+    <string name="add_topic">添加主题</string>
+    <string name="topic_name">名称</string>
+    <string name="topic_keywords">关键词（用逗号分开）</string>
+    <string name="listening_hands_free">正在听…说完会自动结束，也可以点 ■</string>
+    <string name="stop_recording">结束</string>
+    <string name="widget_desc">打字或说话，随时添加任务</string>
+    <string name="widget_hint">添加任务</string>
 </resources>

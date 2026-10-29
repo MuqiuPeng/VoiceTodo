@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import app.voicetodo.parser.Term
 import app.voicetodo.reminder.Reminders
+import app.voicetodo.widget.QuickAddWidget
 
 // AppCompatActivity rather than ComponentActivity: it applies the in-app
 // language (Settings → Language) on Android versions below 13.
@@ -40,13 +41,26 @@ class MainActivity : AppCompatActivity() {
                 AppScreen(vm, setup = ::setupState, openSetting = ::openSetting)
             }
         }
+        handleQuickIntent(intent)
         handleDebugIntent(intent)
         vm.updater.checkIfDue()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        handleQuickIntent(intent)
         handleDebugIntent(intent)
+    }
+
+    /** The home-screen widget: type or talk straight away. */
+    private fun handleQuickIntent(intent: Intent?) {
+        when (intent?.action) {
+            QuickAddWidget.ACTION_TYPE -> vm.requestQuick(MainViewModel.Quick.TYPE)
+            QuickAddWidget.ACTION_VOICE -> vm.requestQuick(MainViewModel.Quick.VOICE)
+            else -> return
+        }
+        // Handled once: a rotation must not start another recording.
+        intent.action = null
     }
 
     /**

@@ -8,6 +8,7 @@ import app.voicetodo.speech.SpeechPack
 import app.voicetodo.speech.SpeechEngine
 import app.voicetodo.speech.SpeechPacks
 import app.voicetodo.update.Updater
+import app.voicetodo.widget.QuickAddWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -43,6 +44,7 @@ class VoiceTodoApp : Application() {
         updater = Updater(this, scope)
         packs = SpeechPacks(this, scope, onActiveChanged = ::loadSpeech)
         loadSpeech(packs.active.value)
+        QuickAddWidget.updateAll(this)
         // A delete whose undo never expired (app killed) leaves its recording behind.
         scope.launch { recordings.deleteOrphans(TaskStore.get(this@VoiceTodoApp).tasks.value) }
         // Covers alarms lost to a force-stop, which sends no broadcast.

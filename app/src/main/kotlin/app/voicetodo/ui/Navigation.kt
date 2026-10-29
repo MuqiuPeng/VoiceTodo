@@ -31,6 +31,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -56,6 +57,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -79,7 +81,7 @@ import app.voicetodo.update.UpdateState
 import app.voicetodo.update.Updater
 import kotlinx.coroutines.launch
 
-enum class Page { HOME, VOCABULARY, SETTINGS, HELP }
+enum class Page { HOME, VOCABULARY, TOPICS, SETTINGS, HELP }
 
 @Composable
 fun AppScreen(vm: MainViewModel, setup: () -> SetupState, openSetting: (SetupItem) -> Unit) {
@@ -92,6 +94,9 @@ fun AppScreen(vm: MainViewModel, setup: () -> SetupState, openSetting: (SetupIte
         setupState = setup()
         onPauseOrDispose { }
     }
+    // The widget lands on the home screen, whatever page was open.
+    val quick by vm.quick.collectAsState()
+    LaunchedEffect(quick) { if (quick != null) page = Page.HOME }
     // A dot on the menu and on 设置 when something there wants the user.
     val attention = !setupState.complete || update is UpdateState.Available || engine == EngineState.Missing
 
@@ -105,6 +110,10 @@ fun AppScreen(vm: MainViewModel, setup: () -> SetupState, openSetting: (SetupIte
             page == Page.VOCABULARY -> {
                 BackHandler { page = Page.HOME }
                 VocabularyScreen(vm, onBack = { page = Page.HOME })
+            }
+            page == Page.TOPICS -> {
+                BackHandler { page = Page.HOME }
+                TopicsScreen(vm, onBack = { page = Page.HOME })
             }
             page == Page.SETTINGS -> {
                 BackHandler { page = Page.HOME }
@@ -149,6 +158,13 @@ private fun HomeWithDrawer(vm: MainViewModel, attention: Boolean, open: (Page) -
                     icon = { Icon(Icons.Filled.Edit, null) },
                     selected = false,
                     onClick = { go(Page.VOCABULARY) },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    label = { Text(stringResource(R.string.topics)) },
+                    icon = { Icon(Icons.AutoMirrored.Filled.List, null) },
+                    selected = false,
+                    onClick = { go(Page.TOPICS) },
                     modifier = Modifier.padding(horizontal = 12.dp),
                 )
                 NavigationDrawerItem(

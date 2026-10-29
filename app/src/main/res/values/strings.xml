@@ -143,6 +143,8 @@
         <item>Swipe right: delete, with Undo at the bottom.</item>
         <item>Spoken tasks keep their recording; tap ▶ to play it. Tasks from one sentence share one recording.</item>
         <item>Settings → Recordings deletes the recordings of all completed tasks; the tasks stay.</item>
+        <item>Tap a task to give it a topic by hand. Topics (menu → Topics) colour tasks automatically by their keywords; nothing is split into separate lists.</item>
+        <item>Home-screen widget: tap the bar to type, tap the mic to talk. Talking from the widget stops by itself when you finish, or tap ■.</item>
     </string-array>
     <string-array name="help_time_lines">
         <item>Dates: today, tomorrow, Friday, next Wednesday, Nov 5, end of the month, in 3 days, within 2 weeks.</item>
@@ -177,4 +179,12 @@
     <string name="pack_recommended">Recommended</string>
     <string name="pack_in_use">In use</string>
     <string name="no_sound">No sound was recorded. Check the microphone permission or try again.</string>
+    <string name="topics">Topics</string>
+    <string name="add_topic">Add topic</string>
+    <string name="topic_name">Name</string>
+    <string name="topic_keywords">Keywords (comma-separated)</string>
+    <string name="listening_hands_free">Listening… stops when you finish, or tap ■</string>
+    <string name="stop_recording">Stop</string>
+    <string name="widget_desc">Add a task by typing or talking</string>
+    <string name="widget_hint">Add a task</string>
 </resources>

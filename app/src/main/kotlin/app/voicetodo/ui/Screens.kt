@@ -27,6 +27,11 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.compositeOver
+import app.voicetodo.topics.Topic
+import app.voicetodo.topics.TopicClassifier
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -89,6 +94,7 @@ import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -116,6 +122,7 @@ import app.voicetodo.parser.MentionKind
 import app.voicetodo.parser.Term
 import app.voicetodo.update.UpdateState
 import app.voicetodo.update.Updater
+import kotlinx.coroutines.delay
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -144,8 +151,14 @@ fun HomeScreen(vm: MainViewModel, menu: @Composable () -> Unit, openSettings: ()
     // The input field only takes a long press (talk) while it is not focused,
     // so it must not stay focused once the user is done with it: closing the
     // keyboard with Back drops focus too.
+    // Only on the keyboard going away, not on the first frame (when it was
+    // never up): that would undo the focus the widget's "type" just asked for.
     val imeVisible = WindowInsets.isImeVisible
-    LaunchedEffect(imeVisible) { if (!imeVisible) focusManager.clearFocus() }
+    var imeWasVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(imeVisible) {
+        if (imeWasVisible && !imeVisible) focusManager.clearFocus()
+        imeWasVisible = imeVisible
+    }
 
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
         Column(
@@ -301,6 +314,17 @@ fun VocabularyScreen(vm: MainViewModel, onBack: () -> Unit) {
  */
 @Composable
 private fun TaskRow(task: Task, today: LocalDate, vm: MainViewModel) {
+    val topics by vm.topics.collectAsState()
+    val topic = TopicClassifier.topicOf(task, topics)
+    var pickTopic by remember { mutableStateOf(false) }
+    if (pickTopic) {
+        TopicPicker(
+            topics = topics,
+            current = topic,
+            onPick = { vm.setTaskTopic(task, it); pickTopic = false },
+            onDismiss = { pickTopic = false },
+        )
+    }
     val due = describeDue(task.dueDate, task.dueTime, task.dueKind, today, LocalContext.current.resources)
     val overdue = !task.done && task.dueAt?.let { it < LocalDateTime.now() } == true
     val playing by vm.recordings.playing.collectAsState()
@@ -358,12 +382,18 @@ private fun TaskRow(task: Task, today: LocalDate, vm: MainViewModel) {
             // Open tasks stand out (raised, bold, a coloured edge when they have a
             // time); completed ones recede (flat, faded, struck through).
             val scheduled = !task.done && task.dueDate != null
+            // A topic colours the edge and tints the card; nothing is split out.
+            val topicColor = topic?.let { Color(it.color) }
+            val base = MaterialTheme.colorScheme.surfaceContainerHighest
             Card(
-                Modifier.fillMaxWidth().alpha(if (task.done) 0.45f else 1f),
+                Modifier.fillMaxWidth().alpha(if (task.done) 0.45f else 1f).clickable { pickTopic = true },
                 shape = shape,
                 colors = CardDefaults.cardColors(
-                    containerColor = if (task.done) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    else MaterialTheme.colorScheme.surfaceContainerHighest,
+                    containerColor = when {
+                        task.done -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        topicColor != null -> topicColor.copy(alpha = 0.10f).compositeOver(base)
+                        else -> base
+                    },
                 ),
                 elevation = CardDefaults.cardElevation(defaultElevation = if (task.done) 0.dp else 2.dp),
             ) {
@@ -374,6 +404,7 @@ private fun TaskRow(task: Task, today: LocalDate, vm: MainViewModel) {
                             .fillMaxHeight()
                             .background(
                                 when {
+                                    topicColor != null -> topicColor
                                     overdue -> MaterialTheme.colorScheme.error
                                     scheduled -> MaterialTheme.colorScheme.primary
                                     else -> Color.Transparent
@@ -399,7 +430,7 @@ private fun TaskRow(task: Task, today: LocalDate, vm: MainViewModel) {
                                 fontWeight = if (scheduled) FontWeight.Medium else FontWeight.Normal,
                                 color = when {
                                     overdue -> MaterialTheme.colorScheme.error
-                                    scheduled -> MaterialTheme.colorScheme.primary
+                                    scheduled -> topicColor ?: MaterialTheme.colorScheme.primary
                                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                                 },
                             )
@@ -425,6 +456,33 @@ private fun TaskRow(task: Task, today: LocalDate, vm: MainViewModel) {
     }
 }
 
+/** Colour dots for each topic, plus "none"; picking one overrides the automatic choice. */
+@Composable
+private fun TopicPicker(topics: List<Topic>, current: Topic?, onPick: (Topic?) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {},
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                (topics + listOf<Topic?>(null)).forEach { t ->
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onPick(t) }.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            Modifier.size(18.dp).clip(CircleShape)
+                                .background(t?.let { Color(it.color) } ?: Color.Transparent)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape),
+                        )
+                        Text(t?.name ?: "—", Modifier.weight(1f).padding(start = 12.dp))
+                        if (t == current) Icon(Icons.Filled.Check, null, tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        },
+    )
+}
+
 /**
  * One field for both ways in: a tap puts the cursor in it to type, a long
  * press records until release (slide up to throw the recording away).
@@ -448,7 +506,43 @@ private fun InputBar(vm: MainViewModel, openSettings: () -> Unit) {
     var micGranted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
     }
-    val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { micGranted = it }
+    val handsFree by vm.handsFree.collectAsState()
+    val quick by vm.quick.collectAsState()
+    val focusedNow by rememberUpdatedState(focused)
+    @OptIn(ExperimentalLayoutApi::class)
+    val imeShown by rememberUpdatedState(WindowInsets.isImeVisible)
+    var voiceAfterGrant by remember { mutableStateOf(false) }
+    val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        micGranted = it
+        if (it && voiceAfterGrant) vm.startHandsFree()
+        voiceAfterGrant = false
+    }
+    // The widget asked to type or talk.
+    LaunchedEffect(quick) {
+        when (quick) {
+            MainViewModel.Quick.TYPE -> {
+                // On a cold start the window may not have input focus yet and a
+                // request is silently dropped; retry until it takes (~3 s at most).
+                for (attempt in 1..15) {
+                    focusRequester.requestFocus()
+                    keyboard?.show()
+                    delay(200)
+                    if (focusedNow && imeShown) break
+                }
+            }
+            MainViewModel.Quick.VOICE -> when {
+                engine == EngineState.Missing -> openSettings()
+                !micGranted -> {
+                    voiceAfterGrant = true
+                    micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }
+                else -> vm.startHandsFree()
+            }
+            null -> return@LaunchedEffect
+        }
+        vm.quickHandled()
+    }
+    val handsFreeNow by rememberUpdatedState(handsFree)
     val ready = engine == EngineState.Ready
     val recording = capture == Capture.Recording
     val loadingHint = stringResource(R.string.engine_loading)
@@ -462,6 +556,7 @@ private fun InputBar(vm: MainViewModel, openSettings: () -> Unit) {
 
     val status = when {
         recording && cancelArmed -> stringResource(R.string.release_to_cancel)
+        recording && handsFree -> stringResource(R.string.listening_hands_free)
         recording -> stringResource(R.string.listening)
         capture == Capture.Recognizing -> stringResource(R.string.recognizing)
         capture is Capture.Failed -> (capture as Capture.Failed).message
@@ -549,6 +644,12 @@ private fun InputBar(vm: MainViewModel, openSettings: () -> Unit) {
                                 .pointerInput(ready, micGranted) {
                                     awaitEachGesture {
                                         val down = awaitFirstDown()
+                                        // Hands-free recording (from the widget): a tap ends it.
+                                        if (handsFreeNow) {
+                                            waitForUpOrCancellation()
+                                            vm.stopRecording()
+                                            return@awaitEachGesture
+                                        }
                                         val tapped = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
                                             waitForUpOrCancellation()
                                             true
@@ -593,6 +694,12 @@ private fun InputBar(vm: MainViewModel, openSettings: () -> Unit) {
                     Spacer(Modifier.width(12.dp))
                     CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.5.dp)
                     Spacer(Modifier.width(8.dp))
+                }
+                if (recording && handsFree) {
+                    Spacer(Modifier.width(8.dp))
+                    FilledIconButton(onClick = vm::stopRecording, modifier = Modifier.size(52.dp)) {
+                        Icon(Glyphs.Stop, stringResource(R.string.stop_recording))
+                    }
                 }
                 if (text.isNotBlank() && !recording) {
                     Spacer(Modifier.width(8.dp))

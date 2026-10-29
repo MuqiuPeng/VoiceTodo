@@ -24,12 +24,16 @@ import app.voicetodo.parser.TaskParser
 import app.voicetodo.parser.Warning
 import app.voicetodo.reminder.Reminders
 import app.voicetodo.speech.Recorder
+import app.voicetodo.topics.Topic
+import app.voicetodo.topics.TopicStore
 import app.voicetodo.speech.SpeechPack
 import app.voicetodo.speech.SpeechEngine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.time.Duration
 import java.time.LocalDate
@@ -104,6 +108,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val terms: StateFlow<List<Term>> = vocabulary.terms
 
+    private val topicStore = TopicStore.get(app)
+    val topics: StateFlow<List<Topic>> = topicStore.topics
+
+    fun putTopic(t: Topic) = topicStore.put(t)
+
+    fun deleteTopic(t: Topic) {
+        topicStore.delete(t.id)
+        // Tasks put there by hand go back to automatic.
+        store.tasks.value.filter { it.topic == t.id }.forEach { store.update(it.copy(topic = null)) }
+    }
+
+    /** A hand-picked topic; picking "none" stores "" so classification stays off for this task. */
+    fun setTaskTopic(task: Task, topic: Topic?) = store.update(task.copy(topic = topic?.id ?: ""))
+
     /** Names the user just fixed by hand, offered for the vocabulary. */
     private val _suggestions = MutableStateFlow<List<Term>>(emptyList())
     val suggestions: StateFlow<List<Term>> = _suggestions
@@ -114,8 +132,52 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _capture.value = Capture.Recording
     }
 
+    // --- hands-free recording, for voice started from the widget ------------
+
+    private val _handsFree = MutableStateFlow(false)
+
+    /** Recording that ends by itself on silence (or on ■), not on releasing a press. */
+    val handsFree: StateFlow<Boolean> = _handsFree
+
+    /**
+     * A widget cannot be held down, so voice from the widget records until the
+     * speaker stops: ~1.6 s of quiet after speech was heard ends it, 7 s with
+     * no speech at all gives up, 30 s is the ceiling. Waits for the speech
+     * model if the app was cold-started by the widget.
+     */
+    fun startHandsFree() = viewModelScope.launch {
+        val engine = withTimeoutOrNull(20_000) {
+            voiceApp.engineState.first { it != VoiceTodoApp.EngineState.Loading }
+        }
+        if (engine != VoiceTodoApp.EngineState.Ready) return@launch
+        startRecording()
+        _handsFree.value = true
+        val started = System.currentTimeMillis()
+        var heard = false
+        var quietSince = 0L
+        while (_capture.value == Capture.Recording && _handsFree.value) {
+            delay(100)
+            val now = System.currentTimeMillis()
+            val level = recorder.level.value
+            when {
+                level > SPEECH_LEVEL -> { heard = true; quietSince = 0L }
+                heard && level < QUIET_LEVEL -> if (quietSince == 0L) quietSince = now
+            }
+            when {
+                heard && quietSince != 0L && now - quietSince > 1_600 -> stopRecording()
+                !heard && now - started > 7_000 -> {
+                    cancelRecording()
+                    _capture.value = Capture.Failed(text(R.string.not_heard))
+                }
+                now - started > 30_000 -> stopRecording()
+            }
+        }
+        _handsFree.value = false
+    }
+
     fun stopRecording() {
         if (_capture.value != Capture.Recording) return
+        _handsFree.value = false
         val samples = recorder.stop()
         // Under half a second is a tap, not speech.
         if (samples.size < SpeechEngine.SAMPLE_RATE / 2) {
@@ -134,11 +196,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Slid away while holding: the recording is thrown away unheard. */
     fun cancelRecording() {
         if (_capture.value != Capture.Recording) return
+        _handsFree.value = false
         recorder.stop()
         _capture.value = Capture.Idle
     }
 
     val level: StateFlow<Float> = recorder.level
+
+    // --- quick actions from the widget -------------------------------------
+
+    enum class Quick { TYPE, VOICE }
+
+    private val _quick = MutableStateFlow<Quick?>(null)
+
+    /**
+     * Held until the input bar acts on it: the activity may be showing another
+     * page (or not composed yet) when the widget's intent arrives.
+     */
+    val quick: StateFlow<Quick?> = _quick
+
+    fun requestQuick(q: Quick) {
+        _confirmation.value = null
+        _quick.value = q
+    }
+
+    fun quickHandled() {
+        _quick.value = null
+    }
 
     /** Debug builds only: feed a WAV instead of the microphone (the emulator has no voice). */
     fun recognizeFile(path: String) = viewModelScope.launch {
@@ -327,5 +411,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val names = doneRecordings(all).toSet()
         all.filter { it.done && it.audio in names }.forEach { store.update(it.copy(audio = null)) }
         recordings.deleteUnreferenced(names, store.tasks.value)
+    }
+
+    private companion object {
+        /** Recorder.level units (RMS / 4000): talking sits well above 0.12, a quiet room below 0.06. */
+        const val SPEECH_LEVEL = 0.12f
+        const val QUIET_LEVEL = 0.06f
     }
 }

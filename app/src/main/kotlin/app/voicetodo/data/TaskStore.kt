@@ -20,7 +20,7 @@ import java.time.LocalTime
  * the same list.
  */
 class TaskStore private constructor(context: Context) :
-    SQLiteOpenHelper(context, "tasks.db", null, 2) {
+    SQLiteOpenHelper(context, "tasks.db", null, 3) {
 
     private val _tasks = MutableStateFlow<List<Task>>(emptyList())
     val tasks: StateFlow<List<Task>> = _tasks
@@ -46,7 +46,8 @@ class TaskStore private constructor(context: Context) :
                 done INTEGER NOT NULL DEFAULT 0,
                 snooze_until TEXT,
                 last_notified TEXT,
-                audio TEXT
+                audio TEXT,
+                topic TEXT
             )
             """.trimIndent(),
         )
@@ -55,6 +56,8 @@ class TaskStore private constructor(context: Context) :
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         // v2 (app 0.6.0): the recording a task was spoken in.
         if (oldVersion < 2) db.execSQL("ALTER TABLE tasks ADD COLUMN audio TEXT")
+        // v3 (app 0.9.0): a topic picked by hand.
+        if (oldVersion < 3) db.execSQL("ALTER TABLE tasks ADD COLUMN topic TEXT")
     }
 
     fun get(id: Long): Task? = readableDatabase
@@ -103,6 +106,7 @@ class TaskStore private constructor(context: Context) :
         put("snooze_until", snoozeUntil?.toString())
         put("last_notified", lastNotified?.toString())
         put("audio", audio)
+        put("topic", topic)
     }
 
     private fun Cursor.str(col: String): String? = getColumnIndexOrThrow(col).let { if (isNull(it)) null else getString(it) }
@@ -122,6 +126,7 @@ class TaskStore private constructor(context: Context) :
         snoozeUntil = str("snooze_until")?.let(LocalDateTime::parse),
         lastNotified = str("last_notified")?.let(LocalDateTime::parse),
         audio = str("audio"),
+        topic = str("topic"),
     )
 
     companion object {
