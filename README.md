@@ -22,7 +22,8 @@ OpenAI-compatible endpoint to refine parsing when online is planned, not built.
   so editing a topic recolours everything; tapping a task overrides it. A
   home-screen widget adds tasks without opening the app: it opens a small
   panel over the home screen (`QuickAddActivity`, its own task) to type in or
-  hold to talk, or recording hands-free from the mic (a widget cannot be
+  hold to talk, or recording hands-free from the icon (one cell wide, the
+  widget is only that icon, dark or white to suit the wallpaper; a widget cannot be
   long-pressed, so that stops on ~1.6 s of silence), with a compact
   confirmation and ✓ to save. Speech →
   SenseVoice int8 via sherpa-onnx, fully offline → parser → confirmation
