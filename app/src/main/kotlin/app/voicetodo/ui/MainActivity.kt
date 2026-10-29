@@ -1,0 +1,84 @@
+package app.voicetodo.ui
+
+import android.Manifest
+import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.ui.graphics.Color
+import androidx.core.content.ContextCompat
+import app.voicetodo.reminder.Reminders
+
+class MainActivity : ComponentActivity() {
+    private val vm: MainViewModel by viewModels()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            val scheme = if (isSystemInDarkTheme()) {
+                darkColorScheme(primary = Color(0xFF9CC2F0))
+            } else {
+                lightColorScheme(primary = Color(0xFF3A6EA5))
+            }
+            MaterialTheme(colorScheme = scheme) {
+                AppScreen(vm, setup = ::setupState, openSetting = ::openSetting)
+            }
+        }
+        handleDebugIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleDebugIntent(intent)
+    }
+
+    /**
+     * Debug builds accept `--es debug_wav <path>` or `--es debug_text <text>`
+     * from adb, so the pipeline can be driven on an emulator with no voice.
+     */
+    private fun handleDebugIntent(intent: Intent?) {
+        if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0 || intent == null) return
+        intent.getStringExtra("debug_wav")?.let { vm.recognizeFile(it) }
+        intent.getStringExtra("debug_text")?.let { vm.parseText(it) }
+    }
+
+    fun setupState(): SetupState {
+        val notifications = Build.VERSION.SDK_INT < 33 ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        val battery = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+        return SetupState(
+            notifications = notifications,
+            exactAlarms = Reminders.canScheduleExact(this),
+            batteryUnrestricted = battery,
+        )
+    }
+
+    fun openSetting(which: SetupItem) {
+        val intent = when (which) {
+            SetupItem.EXACT_ALARMS -> Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName"))
+            SetupItem.BATTERY -> Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+            SetupItem.APP_DETAILS -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+        }
+        runCatching { startActivity(intent) }
+            .onFailure { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) }
+    }
+}
+
+data class SetupState(val notifications: Boolean, val exactAlarms: Boolean, val batteryUnrestricted: Boolean) {
+    val complete get() = notifications && exactAlarms && batteryUnrestricted
+}
+
+enum class SetupItem { EXACT_ALARMS, BATTERY, APP_DETAILS }
