@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -67,6 +68,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.voicetodo.VoiceTodoApp.EngineState
 import app.voicetodo.data.Task
 import app.voicetodo.parser.MentionKind
+import app.voicetodo.parser.Term
 import app.voicetodo.update.UpdateState
 import app.voicetodo.update.Updater
 import java.time.Duration
@@ -79,13 +81,19 @@ private val Amber = Color(0xFFB26A00)
 @Composable
 fun AppScreen(vm: MainViewModel, setup: () -> SetupState, openSetting: (SetupItem) -> Unit) {
     val confirmation by vm.confirmation.collectAsState()
+    var showVocabulary by remember { mutableStateOf(false) }
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         val c = confirmation
-        if (c != null) {
-            BackHandler { vm.dismissConfirmation() }
-            ConfirmScreen(c, vm)
-        } else {
-            HomeScreen(vm, setup, openSetting)
+        when {
+            c != null -> {
+                BackHandler { vm.dismissConfirmation() }
+                ConfirmScreen(c, vm)
+            }
+            showVocabulary -> {
+                BackHandler { showVocabulary = false }
+                VocabularyScreen(vm, onBack = { showVocabulary = false })
+            }
+            else -> HomeScreen(vm, setup, openSetting, openVocabulary = { showVocabulary = true })
         }
     }
 }
@@ -93,8 +101,14 @@ fun AppScreen(vm: MainViewModel, setup: () -> SetupState, openSetting: (SetupIte
 // --- home -------------------------------------------------------------------
 
 @Composable
-private fun HomeScreen(vm: MainViewModel, setup: () -> SetupState, openSetting: (SetupItem) -> Unit) {
+private fun HomeScreen(
+    vm: MainViewModel,
+    setup: () -> SetupState,
+    openSetting: (SetupItem) -> Unit,
+    openVocabulary: () -> Unit,
+) {
     val tasks by vm.tasks.collectAsState()
+    val suggestions by vm.suggestions.collectAsState()
     var setupState by remember { mutableStateOf(setup()) }
     LifecycleResumeEffect(Unit) {
         setupState = setup()
@@ -109,7 +123,7 @@ private fun HomeScreen(vm: MainViewModel, setup: () -> SetupState, openSetting: 
     val open = tasks.filter { !it.done }
     val done = tasks.filter { it.done }
 
-    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
         Row(
             Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 16.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -120,6 +134,9 @@ private fun HomeScreen(vm: MainViewModel, setup: () -> SetupState, openSetting: 
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
             )
+            TextButton(onClick = openVocabulary) {
+                Text("专有名词", style = MaterialTheme.typography.labelMedium)
+            }
             TextButton(onClick = { vm.updater.check() }) {
                 Text("v${vm.updater.currentVersion} · 检查更新", style = MaterialTheme.typography.labelMedium)
             }
@@ -132,6 +149,7 @@ private fun HomeScreen(vm: MainViewModel, setup: () -> SetupState, openSetting: 
             if (update != UpdateState.Idle) {
                 item { UpdateCard(update, vm.updater) }
             }
+            items(suggestions, key = { "suggest-" + it.text }) { SuggestionCard(it, vm) }
             if (!setupState.complete) {
                 item {
                     SetupCard(
@@ -216,6 +234,93 @@ private fun UpdateCard(state: UpdateState, updater: Updater) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         state.release?.let { r -> Button(onClick = { updater.downloadAndInstall(r) }) { Text("重试") } }
                         TextButton(onClick = updater::dismiss) { Text("关闭") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** "You fixed 疼讯 to 腾讯 — remember it?" Both fields stay editable: the guess at the word's edges can be off. */
+@Composable
+private fun SuggestionCard(suggestion: Term, vm: MainViewModel) {
+    var text by remember(suggestion) { mutableStateOf(suggestion.text) }
+    var heard by remember(suggestion) { mutableStateOf(suggestion.aliases.joinToString("，")) }
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("加入专有名词？以后会自动纠正", fontWeight = FontWeight.SemiBold)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(text, { text = it }, label = { Text("正确写法") }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(heard, { heard = it }, label = { Text("常被听成") }, singleLine = true, modifier = Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(enabled = text.isNotBlank(), onClick = {
+                    vm.addTerm(Term(text.trim(), splitAliases(heard)))
+                    vm.dismissSuggestion(suggestion)
+                }) { Text("加入") }
+                TextButton(onClick = { vm.dismissSuggestion(suggestion) }) { Text("不用") }
+            }
+        }
+    }
+}
+
+// Not on spaces: "open ai" is one alias.
+private fun splitAliases(s: String) = s.split(',', '，', '、').map(String::trim).filter(String::isNotEmpty)
+
+@Composable
+private fun VocabularyScreen(vm: MainViewModel, onBack: () -> Unit) {
+    val terms by vm.terms.collectAsState()
+    var text by remember { mutableStateOf("") }
+    var heard by remember { mutableStateOf("") }
+    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
+        Row(Modifier.padding(start = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onBack) { Text("‹ 返回") }
+            Text("专有名词", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+        }
+        LazyColumn(
+            Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            item {
+                Text(
+                    "公司名、人名、地名等。识别结果里发音相同的字会自动改成这里的写法；" +
+                        "这些词也不会被误当成时间（比如“周一科技”）。英文名或读音对不上的词，" +
+                        "可以填上它“常被听成”什么。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(text, { text = it }, label = { Text("正确写法，如：腾讯") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(heard, { heard = it }, label = { Text("常被听成（可不填，多个用逗号分开）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        Button(enabled = text.isNotBlank(), onClick = {
+                            vm.addTerm(Term(text.trim(), splitAliases(heard)))
+                            text = ""
+                            heard = ""
+                        }) { Text("添加") }
+                    }
+                }
+            }
+            if (terms.isEmpty()) {
+                item { Text("还没有添加任何词", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(8.dp)) }
+            }
+            items(terms, key = { it.text }) { t ->
+                Card(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(t.text, style = MaterialTheme.typography.bodyLarge)
+                            if (t.aliases.isNotEmpty()) {
+                                Text(
+                                    "常被听成：" + t.aliases.joinToString("、"),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        TextButton(onClick = { vm.deleteTerm(t.text) }) { Text("删除") }
                     }
                 }
             }
@@ -388,7 +493,7 @@ private fun TextInputDialog(initial: String, onDismiss: () -> Unit, onSubmit: (S
 private fun ConfirmScreen(c: Confirmation, vm: MainViewModel) {
     var editingTranscript by remember { mutableStateOf(false) }
     val count = c.drafts.count { it.include && it.title.isNotBlank() }
-    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
         Text(
             "确认任务",
             style = MaterialTheme.typography.headlineSmall,
@@ -403,6 +508,17 @@ private fun ConfirmScreen(c: Confirmation, vm: MainViewModel) {
                 modifier = Modifier.weight(1f),
             )
             TextButton(onClick = { editingTranscript = true }) { Text("改文字") }
+        }
+        if (c.corrections.isNotEmpty()) {
+            Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "已按专有名词纠正：" + c.corrections.joinToString("，") { "${it.from}→${it.to}" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = vm::undoCorrections) { Text("撤回") }
+            }
         }
         LazyColumn(
             Modifier.weight(1f),

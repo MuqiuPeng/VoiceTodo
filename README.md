@@ -17,6 +17,25 @@ OpenAI-compatible endpoint to refine parsing when online is planned, not built.
   carry 完成 / 1小时后再提醒. Alarms are restored after reboot, clock
   changes and exact-alarm permission changes.
 
+### Proper nouns (专有名词)
+
+SenseVoice takes no hotwords, so the user's company names, people and places
+are fixed after recognition instead (`parser/.../Vocabulary.kt`):
+
+- **Pinyin matching** — "疼讯" becomes "腾讯" because they sound the same.
+  Accent mergers (zh/z, n/l, f/h, -ing/-in…) are allowed for at most a third
+  of a term's characters; looser than that starts rewriting ordinary words.
+- **Aliases** — for words whose sound does not follow from their spelling:
+  Shopee ← 虾皮, 秀匹.
+- **Protection** — terms are hidden from the time parser, so "周一科技" is a
+  company, not Monday.
+- **Learning** — fixing a name by hand on the confirmation card offers to add
+  it, with what was heard as its alias. Corrections are listed on the card
+  with an undo.
+
+The pinyin table is generated from Unicode's Unihan data by
+`scripts/gen-pinyin.py` (Unicode License v3).
+
 ## Install
 
 Download `VoiceTodo-<version>.apk` from the
@@ -57,6 +76,7 @@ tested without a voice:
 
 ```bash
 adb shell am start -n app.voicetodo/.ui.MainActivity --es debug_text "明天下午三点开会"
+adb shell am start -n app.voicetodo/.ui.MainActivity --es debug_term "'Shopee|虾皮|秀匹'"
 adb shell am start -n app.voicetodo/.ui.MainActivity --es debug_wav /data/data/app.voicetodo/files/t1.wav
 # updater against a local server shaped like GitHub's releases/latest JSON
 adb shell am start -n app.voicetodo/.ui.MainActivity --es debug_update_url http://10.0.2.2:8771/latest.json

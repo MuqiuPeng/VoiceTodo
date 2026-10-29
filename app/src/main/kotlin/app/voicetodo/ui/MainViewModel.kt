@@ -6,6 +6,11 @@ import androidx.lifecycle.viewModelScope
 import app.voicetodo.VoiceTodoApp
 import app.voicetodo.data.Task
 import app.voicetodo.data.TaskStore
+import app.voicetodo.data.VocabularyStore
+import app.voicetodo.parser.Correction
+import app.voicetodo.parser.Term
+import app.voicetodo.parser.VocabularyCorrector
+import app.voicetodo.parser.suggestTerm
 import app.voicetodo.parser.Due
 import app.voicetodo.parser.MentionKind
 import app.voicetodo.parser.TaskParser
@@ -37,9 +42,18 @@ data class Draft(
     val source: String,
     val warnings: Set<Warning>,
     val alternatives: List<Due>,
+    /** The title as parsed, to tell a hand-corrected name from no edit at all. */
+    val parsedTitle: String = title,
 )
 
-data class Confirmation(val transcript: String, val drafts: List<Draft>)
+data class Confirmation(
+    /** What will be saved as the task's source: the text after vocabulary corrections. */
+    val transcript: String,
+    val drafts: List<Draft>,
+    /** What the recognizer actually wrote, for undoing the corrections. */
+    val heard: String = transcript,
+    val corrections: List<Correction> = emptyList(),
+)
 
 sealed interface Capture {
     data object Idle : Capture
@@ -51,6 +65,7 @@ sealed interface Capture {
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val voiceApp = app as VoiceTodoApp
     private val store = TaskStore.get(app)
+    private val vocabulary = VocabularyStore.get(app)
     private val parser = TaskParser()
     private val recorder = Recorder()
 
@@ -63,6 +78,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _confirmation = MutableStateFlow<Confirmation?>(null)
     val confirmation: StateFlow<Confirmation?> = _confirmation
+
+    val terms: StateFlow<List<Term>> = vocabulary.terms
+
+    /** Names the user just fixed by hand, offered for the vocabulary. */
+    private val _suggestions = MutableStateFlow<List<Term>>(emptyList())
+    val suggestions: StateFlow<List<Term>> = _suggestions
 
     fun startRecording() {
         if (!voiceApp.speech.isReady) return
@@ -104,8 +125,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun parseText(text: String) {
-        val result = parser.parse(text, LocalDateTime.now())
+    /**
+     * Applies the user's vocabulary, then parses. With `correct = false` the
+     * misheard words stay as heard (the undo on the confirmation card), but
+     * the vocabulary still keeps its terms from being read as times.
+     */
+    fun parseText(heard: String, correct: Boolean = true) {
+        val terms = vocabulary.terms.value
+        val corrected = if (correct) VocabularyCorrector(terms).correct(heard) else null
+        val text = corrected?.text ?: heard
+        val result = parser.parse(text, LocalDateTime.now(), terms.map { it.text })
         val drafts = result.tasks.mapIndexed { i, t ->
             Draft(
                 key = i,
@@ -121,7 +150,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 alternatives = t.alternatives,
             )
         }.ifEmpty { listOf(blankDraft(text)) }
-        _confirmation.value = Confirmation(text, drafts)
+        _confirmation.value = Confirmation(text, drafts, heard, corrected?.corrections ?: emptyList())
+    }
+
+    fun undoCorrections() {
+        _confirmation.value?.let { parseText(it.heard, correct = false) }
     }
 
     private fun blankDraft(text: String) = Draft(
@@ -159,8 +192,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val id = store.insert(task)
             Reminders.schedule(ctx, task.copy(id = id))
         }
+        val known = vocabulary.terms.value.map { it.text }.toSet()
+        _suggestions.value = c.drafts
+            .mapNotNull { suggestTerm(it.parsedTitle, it.title.trim()) }
+            .filter { it.text !in known }
+            .distinctBy { it.text }
         _confirmation.value = null
     }
+
+    fun addTerm(term: Term) = vocabulary.put(term)
+
+    fun dismissSuggestion(term: Term) {
+        _suggestions.value = _suggestions.value - term
+    }
+
+    fun deleteTerm(text: String) = vocabulary.delete(text)
 
     fun setDone(task: Task, done: Boolean) {
         val updated = task.copy(done = done)

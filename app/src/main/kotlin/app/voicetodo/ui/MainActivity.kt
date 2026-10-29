@@ -19,6 +19,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
+import app.voicetodo.parser.Term
 import app.voicetodo.reminder.Reminders
 
 class MainActivity : ComponentActivity() {
@@ -47,13 +48,15 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Debug builds accept `--es debug_wav <path>`, `--es debug_text <text>` and
-     * `--es debug_update_url <url>` from adb, so the pipeline and the updater
+     * Debug builds accept `--es debug_wav <path>`, `--es debug_text <text>`,
+     * `--es debug_term <term|alias…>` and `--es debug_update_url <url>` from adb, so the pipeline and the updater
      * can be driven on an emulator with no voice and no published release.
      */
     private fun handleDebugIntent(intent: Intent?) {
         if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0 || intent == null) return
         intent.getStringExtra("debug_wav")?.let { vm.recognizeFile(it) }
+        // "腾讯|疼讯|藤寻": a term and what it is misheard as.
+        intent.getStringExtra("debug_term")?.split('|')?.let { vm.addTerm(Term(it[0], it.drop(1))) }
         intent.getStringExtra("debug_text")?.let { vm.parseText(it) }
         intent.getStringExtra("debug_update_url")?.let {
             vm.updater.endpoint = it

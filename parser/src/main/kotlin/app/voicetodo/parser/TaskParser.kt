@@ -18,11 +18,35 @@ import java.time.LocalTime
  */
 class TaskParser(private val config: ParserConfig = ParserConfig()) {
 
-    fun parse(input: String, now: LocalDateTime): ParseResult {
-        val normalized = Normalizer.normalize(input)
+    /**
+     * `protectedTerms` are the user's proper nouns. They are never read as
+     * time ("周一科技", "三点水工作室") and never rewritten by normalization;
+     * each is swapped for a private-use placeholder while parsing and put back
+     * in the titles afterwards. Mention spans index the placeholder form.
+     */
+    fun parse(input: String, now: LocalDateTime, protectedTerms: Collection<String> = emptyList()): ParseResult {
+        val terms = protectedTerms.filter { it.isNotBlank() }.distinct().sortedByDescending { it.length }
+            .take(PLACEHOLDERS)
+        var shielded = input
+        terms.forEachIndexed { i, t -> shielded = shielded.replace(t, (PLACEHOLDER_BASE + i).toString()) }
+        fun restore(s: String): String {
+            var r = s
+            terms.forEachIndexed { i, t -> r = r.replace((PLACEHOLDER_BASE + i).toString(), t) }
+            return r
+        }
+
+        val normalized = Normalizer.normalize(shielded)
         val scanner = Scanner(now.withSecond(0).withNano(0), config)
         val clauses = splitClauses(normalized, scanner).map { analyze(it, scanner, now) }
-        return ParseResult(input, normalized, assemble(clauses))
+        val tasks = assemble(clauses).map { t ->
+            t.copy(
+                title = restore(t.title),
+                detail = t.detail?.let(::restore),
+                source = restore(t.source),
+                mentions = t.mentions.map { it.copy(text = restore(it.text)) },
+            )
+        }
+        return ParseResult(input, restore(normalized), tasks)
     }
 
     // --- clauses -----------------------------------------------------------
@@ -425,6 +449,10 @@ class TaskParser(private val config: ParserConfig = ParserConfig()) {
     }
 
     private companion object {
+        /** Private-use characters stand in for protected terms; nothing in the rules matches them. */
+        const val PLACEHOLDER_BASE = '\uE000'
+        const val PLACEHOLDERS = 0x1000
+
         const val STRONG_BREAK = "。！!？?；;\n"
         const val WEAK_BREAK = "，,"
         const val EDGE_PUNCT = "，,。.！!？?、；;:：~～-—"
