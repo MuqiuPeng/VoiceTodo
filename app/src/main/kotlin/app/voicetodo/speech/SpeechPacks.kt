@@ -12,8 +12,22 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.io.File
+import java.util.Locale
 
-data class PackFile(val name: String, val url: String, val size: Long, val sha256: String)
+/**
+ * [url] is the GitHub copy; [mirrors] serve the same bytes from inside China
+ * (the pinned size and digest make any of them safe to use).
+ */
+data class PackFile(val name: String, val url: String, val size: Long, val sha256: String, val mirrors: List<String> = emptyList()) {
+    /** Where to try, in order: the chosen source first, the other as a fallback. */
+    fun urls(source: PackSource): List<String> {
+        val china = mirrors + SpeechPacks.GH_PROXIES.map { it + url }
+        return if (source == PackSource.CHINA) china + url else listOf(url) + china
+    }
+}
+
+/** Where speech packs download from. GitHub is slow or blocked in mainland China. */
+enum class PackSource { GITHUB, CHINA }
 
 /** How the recognizer has to be configured for a pack's files. */
 enum class PackKind {
@@ -48,7 +62,8 @@ sealed interface PackState {
  * published as assets of GitHub pre-releases in this app's repo (pre-releases
  * so the updater, which reads releases/latest, never mistakes one for an app
  * version). Sizes and digests are pinned here, so a pack is only installed if
- * it is byte-for-byte the one this version was tested with.
+ * it is byte-for-byte the one this version was tested with — which is also
+ * what lets the China mirrors (ModelScope copies, GitHub proxies) be trusted.
  *
  * Several packs can be installed; one is active. Which one was compared on
  * the same Chinese, English and mixed clips — see README.
@@ -69,6 +84,17 @@ class SpeechPacks(
     val active: StateFlow<SpeechPack?> = _active
 
     private val jobs = mutableMapOf<String, Job>()
+
+    private val _source = MutableStateFlow(
+        prefs.getString(KEY_SOURCE, null)?.let { runCatching { PackSource.valueOf(it) }.getOrNull() }
+            ?: if (Locale.getDefault().country == "CN") PackSource.CHINA else PackSource.GITHUB,
+    )
+    val source: StateFlow<PackSource> = _source
+
+    fun setSource(s: PackSource) {
+        prefs.edit().putString(KEY_SOURCE, s.name).apply()
+        _source.value = s
+    }
 
     fun dir(p: SpeechPack) = File(root, p.id)
 
@@ -95,9 +121,7 @@ class SpeechPacks(
             try {
                 var before = 0L
                 for (f in p.files) {
-                    Download.fetch(f.url, File(dir(p), f.name), f.size, f.sha256) { done ->
-                        set(p, PackState.Downloading(before + done, p.size))
-                    }
+                    fetch(f, File(dir(p), f.name)) { done -> set(p, PackState.Downloading(before + done, p.size)) }
                     before += f.size
                 }
                 set(p, PackState.Installed)
@@ -109,6 +133,22 @@ class SpeechPacks(
                 set(p, PackState.Failed(e.describe(context)))
             }
         }
+    }
+
+    /** Each URL in turn until one delivers; a partial file carries over, since every source has the same bytes. */
+    private suspend fun fetch(f: PackFile, dest: File, onProgress: (Long) -> Unit) {
+        var error: Exception? = null
+        for (url in f.urls(_source.value)) {
+            try {
+                Download.fetch(url, dest, f.size, f.sha256, onProgress)
+                return
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                error = error ?: e
+            }
+        }
+        throw error!!
     }
 
     /** Stops the download; the partial file stays and the next download resumes it. */
@@ -136,7 +176,12 @@ class SpeechPacks(
 
     companion object {
         private const val KEY_ACTIVE = "active_pack"
+        private const val KEY_SOURCE = "source"
         private const val GH = "https://github.com/MuqiuPeng/VoiceTodo/releases/download"
+        private const val MS = "https://www.modelscope.cn/models"
+
+        /** Public GitHub download proxies reachable from China, checked to pass ranges through. */
+        val GH_PROXIES = listOf("https://ghfast.top/", "https://gh-proxy.com/", "https://ghproxy.net/")
 
         /** Best on Chinese with English mixed in, and on accents. */
         val FUNASR_NANO = SpeechPack(
@@ -148,12 +193,20 @@ class SpeechPacks(
                 PackFile(
                     "model.int8.onnx", "$GH/speech-funasr-nano-2512/funasr-nano-2512-int8.onnx", 263_531_902,
                     "9dc6e72aa8bc6f5966cf2857a0ce3a425b1d72e91500e147d66329f407c017a1",
+                    listOf("$MS/liaowenbin/sherpa-onnx-sense-voice-funasr-nano-int8/resolve/master/model.int8.onnx"),
                 ),
                 PackFile(
                     "tokens.txt", "$GH/speech-funasr-nano-2512/funasr-nano-2512-tokens.txt", 939_815,
                     "2db4bb25d046e8849e336c9465e248e1694914d996c58c71bdeca18cfb722992",
+                    listOf("$MS/liaowenbin/sherpa-onnx-sense-voice-funasr-nano-int8/resolve/master/tokens.txt"),
                 ),
             ),
+        )
+
+        /** Two independent ModelScope copies of the upstream repo. Zipformer has none; it goes through [GH_PROXIES]. */
+        private val SENSEVOICE_MS = listOf(
+            "aistoy/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09",
+            "Mr7Cat/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09",
         )
 
         val SENSEVOICE = SpeechPack(
@@ -165,10 +218,12 @@ class SpeechPacks(
                 PackFile(
                     "model.int8.onnx", "$GH/speech-sensevoice-2025-09-09/sensevoice-int8-2025-09-09.onnx", 237_115_547,
                     "12ca1a2ae7ecf3e0019ef2822307ee0b5cadc9196569e379b4c4026f8205276d",
+                    SENSEVOICE_MS.map { "$MS/$it/resolve/master/model.int8.onnx" },
                 ),
                 PackFile(
                     "tokens.txt", "$GH/speech-sensevoice-2025-09-09/sensevoice-tokens.txt", 315_894,
                     "f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc",
+                    SENSEVOICE_MS.map { "$MS/$it/resolve/master/tokens.txt" },
                 ),
             ),
         )

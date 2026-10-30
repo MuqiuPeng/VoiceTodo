@@ -101,6 +101,14 @@ SHA-256 pinned in `SpeechPacks.kt`:
 | SenseVoice (2025-09-09, int8) | 226 MB | Good Chinese; English words often misheard, English in capitals |
 | Zipformer zh-en (2023-11-22, int8) | 72 MB | Smallest and fastest; weakest on mixed speech |
 
+In mainland China GitHub is slow or blocked, so the speech pack card has a
+download source: **China mirror** fetches from byte-identical ModelScope copies
+of the upstream repos (FunASR Nano, SenseVoice) and then from public GitHub
+proxies (ghfast.top, gh-proxy.com, ghproxy.net); **GitHub** fetches from the
+release assets. Whichever is chosen, the other is tried if it fails, and the
+pinned SHA-256 decides whether a file is accepted. It defaults to the China
+mirror when the phone's region is CN.
+
 Chosen by running candidates over the same synthesized clips on the device's
 own sherpa-onnx runtime (`DebugBenchReceiver`, debug builds only). On mixed
 sentences ("下周一要交essay", "帮我book一个meeting room", "周三有个interview")

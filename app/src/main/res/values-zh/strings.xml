@@ -50,6 +50,8 @@
     <string name="back">‹ 返回</string>
     <string name="settings">设置</string>
     <string name="section_speech">语音包</string>
+    <string name="pack_source">下载源</string>
+    <string name="source_china">国内镜像</string>
     <string name="section_permissions">提醒权限</string>
     <string name="section_recordings">录音</string>
     <string name="section_language">语言</string>
