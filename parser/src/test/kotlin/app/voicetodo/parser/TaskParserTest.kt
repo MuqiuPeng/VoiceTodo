@@ -5,7 +5,6 @@ import app.voicetodo.parser.MentionKind.DEADLINE
 import app.voicetodo.parser.MentionKind.REMIND
 import app.voicetodo.parser.MentionKind.START
 import app.voicetodo.parser.Warning.AMBIGUOUS_AM_PM
-import app.voicetodo.parser.Warning.AMBIGUOUS_NEXT_WEEK
 import app.voicetodo.parser.Warning.INVALID_DATE
 import app.voicetodo.parser.Warning.IN_PAST
 import app.voicetodo.parser.Warning.RECURRING
@@ -29,6 +28,7 @@ import kotlin.test.fail
 class TaskParserTest {
     private val wednesday = LocalDateTime.of(2026, 10, 28, 10, 0)
     private val monday = LocalDateTime.of(2026, 10, 26, 9, 0)
+    private val friday = LocalDateTime.of(2026, 10, 30, 10, 0)
     private val parser = TaskParser()
 
     private class Expect(
@@ -89,7 +89,11 @@ class TaskParserTest {
         case("礼拜五晚上聚餐", "聚餐", "2026-10-30 20:00")
         case("周三交作业", "交作业", "2026-10-28")
         case("周三三点开会", "开会", "2026-10-28 15:00")
-        case("下周三交报告", "交报告", "2026-11-04", warnings = setOf(AMBIGUOUS_NEXT_WEEK), alt = "2026-10-28", now = monday)
+        // 下周X is next calendar week's X, never this week's, however early in the week.
+        case("下周三交报告", "交报告", "2026-11-04", warnings = emptySet(), now = monday)
+        case("下周六去参加一个lecture", "去参加一个lecture", "2026-11-07", warnings = emptySet(), now = friday)
+        case("下个周日爬山", "爬山", "2026-11-08", warnings = emptySet(), now = friday)
+        case("这周六去参加一个lecture", "去参加一个lecture", "2026-10-31", now = friday)
         case("下下周五前提交申请", "提交申请", "2026-11-13", DEADLINE)
         case("这周内把合同签了", "把合同签了", "2026-10-30", DEADLINE)
         case("下周把PPT做完", "把PPT做完", "2026-11-06")
@@ -193,7 +197,7 @@ class TaskParserTest {
         // --- longer, real-sounding utterances ---
         case(
             "下周五下午五点之前把季度报告发给张总，提前一天提醒我", "把季度报告发给张总", "2026-11-06 17:00", DEADLINE,
-            warnings = setOf(AMBIGUOUS_NEXT_WEEK), alt = "2026-10-30 17:00", remindBefore = Duration.ofDays(1),
+            warnings = emptySet(), remindBefore = Duration.ofDays(1),
         )
         case("明天上午十点去医院复查，记得带病历本", "去医院复查", "2026-10-29 10:00", detail = "带病历本")
         case("后天晚上七点跟小李吃饭", "跟小李吃饭", "2026-10-30 19:00", warnings = emptySet())

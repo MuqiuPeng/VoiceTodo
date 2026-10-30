@@ -291,19 +291,11 @@ internal class Scanner(private val now: LocalDateTime, private val config: Parse
         if (prefix.isEmpty()) {
             return Atom(m.range, date = DatePart(today.with(TemporalAdjusters.nextOrSame(dow))), weekday = dow)
         }
-        val thisWeek = weekStart(today).plusDays(dow.value - 1L)
-        val date = thisWeek.plusWeeks(weekShift(prefix))
-        // "下周三" said on a Monday: next calendar week, but the Wednesday two
-        // days away is what some people mean.
-        val ambiguous = prefix.startsWith("下") && !prefix.startsWith("下下") && thisWeek > today
-        return Atom(
-            m.range,
-            date = DatePart(
-                date,
-                alternatives = if (ambiguous) listOf(thisWeek) else emptyList(),
-                warnings = if (ambiguous) setOf(Warning.AMBIGUOUS_NEXT_WEEK) else emptySet(),
-            ),
-        )
+        // "下周六" is always that day in next calendar week, even said on a
+        // Friday with this week's Saturday still ahead — unlike English
+        // "next Saturday", it is not ambiguous, so no alternative is offered.
+        val date = weekStart(today).plusDays(dow.value - 1L).plusWeeks(weekShift(prefix))
+        return Atom(m.range, date = DatePart(date))
     }
 
     private fun offsetAtom(m: MatchResult): Atom? {

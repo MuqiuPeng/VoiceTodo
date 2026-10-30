@@ -42,7 +42,7 @@ enum class Warning {
     /** The resolved time is already behind `now`. */
     IN_PAST,
 
-    /** "下周三" said early in the week: some people mean the one two days away. */
+    /** "next Friday" said early in the week: some people mean the one two days away. */
     AMBIGUOUS_NEXT_WEEK,
 
     /** A bare "7点" with nothing saying morning or evening. */
