@@ -120,7 +120,7 @@ class SpeechPacks(
     }
 
     /** `release` lets the recognizer let go of the model files first when this pack is in use. */
-    fun delete(p: SpeechPack, release: () -> Unit) {
+    fun delete(p: SpeechPack, release: suspend () -> Unit) {
         scope.launch {
             jobs[p.id]?.cancelAndJoin()
             val wasActive = _active.value == p

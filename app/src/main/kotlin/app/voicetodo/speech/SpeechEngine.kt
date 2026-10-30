@@ -13,6 +13,8 @@ import com.k2fsa.sherpa.onnx.OfflineTransducerModelConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.nio.ByteBuffer
@@ -22,17 +24,24 @@ import java.nio.ByteOrder
  * On-device speech recognition through sherpa-onnx, from the speech pack the
  * user chose (see [SpeechPacks]). Nothing leaves the phone.
  *
- * Loading the model takes a few seconds, so it happens off the main thread,
- * at startup, after a download, or when the user switches packs.
+ * Loading the model takes a couple of seconds and holds a few hundred MB, so
+ * it happens off the main thread, only while a screen that records is open
+ * (see [app.voicetodo.VoiceTodoApp.ensureSpeech]). Loading, unloading and
+ * decoding take turns, so the model is never released mid-decode.
  */
 class SpeechEngine {
     @Volatile
     private var recognizer: OfflineRecognizer? = null
+    private val lock = Mutex()
 
     val isReady: Boolean get() = recognizer != null
 
     suspend fun load(pack: SpeechPack, dir: File) = withContext(Dispatchers.Default) {
-        unload()
+        lock.withLock { loadLocked(pack, dir) }
+    }
+
+    private fun loadLocked(pack: SpeechPack, dir: File) {
+        releaseLocked()
         fun f(name: String) = File(dir, name).absolutePath
         val model = when (pack.kind) {
             PackKind.SENSE_VOICE -> OfflineModelConfig(
@@ -64,12 +73,18 @@ class SpeechEngine {
         )
     }
 
-    fun unload() {
+    suspend fun unload() = lock.withLock { releaseLocked() }
+
+    private fun releaseLocked() {
         recognizer?.release()
         recognizer = null
     }
 
     suspend fun transcribe(samples: FloatArray): String = withContext(Dispatchers.Default) {
+        lock.withLock { transcribeLocked(samples) }
+    }
+
+    private fun transcribeLocked(samples: FloatArray): String {
         val r = recognizer ?: error("speech model not loaded")
         val stream = r.createStream()
         try {
@@ -78,7 +93,7 @@ class SpeechEngine {
             // garbles words ("submit" → "uubmit").
             stream.acceptWaveform(samples, SAMPLE_RATE)
             r.decode(stream)
-            r.getResult(stream).text.trim()
+            return r.getResult(stream).text.trim()
         } finally {
             stream.release()
         }

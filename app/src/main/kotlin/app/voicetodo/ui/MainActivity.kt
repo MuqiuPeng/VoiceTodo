@@ -46,6 +46,11 @@ class MainActivity : AppCompatActivity() {
         vm.updater.checkIfDue()
     }
 
+    override fun onStart() {
+        super.onStart()
+        (application as app.voicetodo.VoiceTodoApp).ensureSpeech()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleQuickIntent(intent)
