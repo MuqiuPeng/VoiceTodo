@@ -51,7 +51,10 @@
     <string name="back">‹ Back</string>
     <string name="settings">Settings</string>
     <string name="section_speech">Speech pack</string>
-    <string name="pack_source">Download from</string>
+    <string name="section_source">Download source</string>
+    <string name="section_widget">Home screen widget</string>
+    <string name="widget_add">Add to home screen</string>
+    <string name="widget_add_manual">Your launcher can\'t add it from here: long-press an empty spot on the home screen → Widgets → VoiceTodo.</string>
     <string name="source_china">China mirror</string>
     <string name="source_github" translatable="false">GitHub</string>
     <string name="section_permissions">Reminder permissions</string>

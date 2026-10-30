@@ -91,6 +91,17 @@ class QuickAddWidget : AppWidgetProvider() {
             return context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
         }
 
+        /**
+         * Asks the launcher to place the widget, which then shows its own
+         * confirmation. False when the launcher does not support that (some
+         * Chinese launchers), so the caller can explain how to add it by hand.
+         */
+        fun requestPin(context: Context): Boolean {
+            val manager = AppWidgetManager.getInstance(context)
+            if (!manager.isRequestPinAppWidgetSupported) return false
+            return runCatching { manager.requestPinAppWidget(ComponentName(context, QuickAddWidget::class.java), null, null) }.getOrDefault(false)
+        }
+
         /** Re-drawn on app start and when the wallpaper changes, so language and icon colour stay current. */
         fun updateAll(context: Context) {
             val manager = AppWidgetManager.getInstance(context)

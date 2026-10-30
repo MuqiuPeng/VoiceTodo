@@ -11,6 +11,8 @@ import android.provider.Settings
 import app.voicetodo.R
 import app.voicetodo.localized
 import app.voicetodo.net.Download
+import app.voicetodo.net.DownloadSource
+import app.voicetodo.net.DownloadSources
 import app.voicetodo.net.describe
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,9 +30,10 @@ data class Release(
     val version: Version,
     val tag: String,
     val notes: String,
+    /** On github.com, so the China proxies can serve it too. */
     val apkUrl: String,
     val size: Long,
-    /** From GitHub's asset digest, when it provides one. */
+    /** From latest.json, or GitHub's asset digest when it provides one. */
     val sha256: String?,
 )
 
@@ -45,15 +48,20 @@ sealed interface UpdateState {
 }
 
 /**
- * Self-update from this app's GitHub releases: the only network traffic the
- * app makes. It looks for the latest release, downloads its APK (resuming a
- * partial download), checks size and digest, and hands it to the system
- * installer — which itself refuses an APK not signed with the same key.
+ * Self-update from this app's GitHub releases: with the speech packs, the only
+ * network traffic the app makes. It looks for the latest release, downloads
+ * its APK (resuming a partial download), checks size and digest, and hands it
+ * to the system installer — which itself refuses an APK not signed with the
+ * same key, so a mirror can at worst fail an update, never forge one.
+ *
+ * Each release carries a small latest.json beside the APK. Being a github.com
+ * download, it goes through the same China proxies as the APK, where the
+ * GitHub API (api.github.com) is often slow, blocked or rate-limited.
  *
  * Lives in the Application so a 280 MB download survives rotation and
  * leaving the screen.
  */
-class Updater(private val context: Context, private val scope: CoroutineScope) {
+class Updater(private val context: Context, private val scope: CoroutineScope, private val sources: DownloadSources) {
     private val prefs = context.getSharedPreferences("updater", Context.MODE_PRIVATE)
     private val _state = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val state: StateFlow<UpdateState> = _state
@@ -63,7 +71,7 @@ class Updater(private val context: Context, private val scope: CoroutineScope) {
         Version.parse(context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0") ?: Version(listOf(0))
 
     /** Debug builds can point at a local server: `--es debug_update_url http://10.0.2.2:8000/latest.json`. */
-    var endpoint: String = RELEASES_URL
+    var endpoint: String? = null
 
     init {
         // A finished update leaves its APK behind; once the new version is running it is garbage.
@@ -146,29 +154,65 @@ class Updater(private val context: Context, private val scope: CoroutineScope) {
 
     // --- network ---------------------------------------------------------
 
+    /** The first source that answers; `null` when there is no release yet. */
     private suspend fun fetchLatest(): Release? = withContext(Dispatchers.IO) {
-        val conn = Download.open(endpoint)
-        conn.setRequestProperty("Accept", "application/vnd.github+json")
+        endpoint?.let { return@withContext fromApi(it) }
+        val manifests = sources.urls(MANIFEST_URL).map { url -> { fromManifest(url) } }
+        val api = { fromApi(API_URL) }
+        val order = if (sources.source.value == DownloadSource.CHINA) manifests + api else listOf(api) + manifests
+        var error: Exception? = null
+        for (attempt in order) {
+            try {
+                return@withContext attempt()
+            } catch (e: Exception) {
+                error = error ?: e
+            }
+        }
+        throw error!!
+    }
+
+    private fun get(url: String, accept: String? = null): String? {
+        val conn = Download.open(url)
+        accept?.let { conn.setRequestProperty("Accept", it) }
         try {
-            if (conn.responseCode == 404) return@withContext null // No release published yet.
+            if (conn.responseCode == 404) return null // No release published yet.
             if (conn.responseCode != 200) error("HTTP ${conn.responseCode}")
-            val json = JSONObject(conn.inputStream.bufferedReader().readText())
-            val tag = json.getString("tag_name")
-            val version = Version.parse(tag) ?: return@withContext null
-            val assets = json.getJSONArray("assets")
-            val apk = (0 until assets.length()).map(assets::getJSONObject)
-                .firstOrNull { it.getString("name").endsWith(".apk") } ?: return@withContext null
-            Release(
-                version = version,
-                tag = tag,
-                notes = json.optString("body").trim(),
-                apkUrl = apk.getString("browser_download_url"),
-                size = apk.getLong("size"),
-                sha256 = apk.optString("digest").takeIf { it.startsWith("sha256:") }?.removePrefix("sha256:"),
-            )
+            return conn.inputStream.bufferedReader().readText()
         } finally {
             conn.disconnect()
         }
+    }
+
+    /** latest.json, as written by scripts/release.sh. */
+    private fun fromManifest(url: String): Release? {
+        // Releases before 0.13.0 have none: move on to the next source rather than report "up to date".
+        val json = JSONObject(get(url) ?: error("no latest.json"))
+        val tag = json.getString("tag")
+        return Release(
+            version = Version.parse(tag) ?: return null,
+            tag = tag,
+            notes = json.optString("notes").trim(),
+            apkUrl = json.getString("apk"),
+            size = json.getLong("size"),
+            sha256 = json.optString("sha256").takeIf { it.isNotEmpty() },
+        )
+    }
+
+    private fun fromApi(url: String): Release? {
+        val json = JSONObject(get(url, "application/vnd.github+json") ?: return null)
+        val tag = json.getString("tag_name")
+        val version = Version.parse(tag) ?: return null
+        val assets = json.getJSONArray("assets")
+        val apk = (0 until assets.length()).map(assets::getJSONObject)
+            .firstOrNull { it.getString("name").endsWith(".apk") } ?: return null
+        return Release(
+            version = version,
+            tag = tag,
+            notes = json.optString("body").trim(),
+            apkUrl = apk.getString("browser_download_url"),
+            size = apk.getLong("size"),
+            sha256 = apk.optString("digest").takeIf { it.startsWith("sha256:") }?.removePrefix("sha256:"),
+        )
     }
 
     private fun updateDir() = File(context.cacheDir, "update")
@@ -176,8 +220,8 @@ class Updater(private val context: Context, private val scope: CoroutineScope) {
     /** One file per release, so a partial download is never resumed into another version. */
     private suspend fun download(release: Release): File {
         _state.value = UpdateState.Downloading(release, 0)
-        return Download.fetch(
-            release.apkUrl,
+        return Download.fetchAny(
+            sources.urls(release.apkUrl),
             File(updateDir(), "VoiceTodo-${release.version}.apk"),
             release.size,
             release.sha256,
@@ -211,7 +255,8 @@ class Updater(private val context: Context, private val scope: CoroutineScope) {
 
     companion object {
         const val REPO = "MuqiuPeng/VoiceTodo"
-        const val RELEASES_URL = "https://api.github.com/repos/$REPO/releases/latest"
+        private const val API_URL = "https://api.github.com/repos/$REPO/releases/latest"
+        private const val MANIFEST_URL = "https://github.com/$REPO/releases/latest/download/latest.json"
         private const val CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000L
         private const val KEY_LAST_CHECK = "last_check"
         private const val KEY_SKIPPED = "skipped_tag"

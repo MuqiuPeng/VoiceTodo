@@ -4,6 +4,7 @@ import android.app.Application
 import app.voicetodo.data.Recordings
 import app.voicetodo.data.TaskStore
 import app.voicetodo.reminder.Reminders
+import app.voicetodo.net.DownloadSources
 import app.voicetodo.speech.SpeechPack
 import app.voicetodo.speech.SpeechEngine
 import app.voicetodo.speech.SpeechPacks
@@ -34,6 +35,8 @@ class VoiceTodoApp : Application() {
         private set
     lateinit var packs: SpeechPacks
         private set
+    lateinit var sources: DownloadSources
+        private set
     val recordings by lazy { Recordings(this) }
 
     private val _engineState = MutableStateFlow<EngineState>(EngineState.Loading)
@@ -43,8 +46,9 @@ class VoiceTodoApp : Application() {
         super.onCreate()
         Reminders.createChannel(this)
         speech = SpeechEngine()
-        updater = Updater(this, scope)
-        packs = SpeechPacks(this, scope, onActiveChanged = ::loadSpeech)
+        sources = DownloadSources(this)
+        updater = Updater(this, scope, sources)
+        packs = SpeechPacks(this, scope, sources, onActiveChanged = ::loadSpeech)
         // Not loaded here: this also runs for every reminder, notification
         // button and widget refresh, where the model would cost seconds of CPU
         // and a few hundred MB for nothing. Screens that record ask for it.

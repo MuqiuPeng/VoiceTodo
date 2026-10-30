@@ -20,6 +20,15 @@ if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then echo "$tag alread
 apk=app/build/outputs/apk/release/VoiceTodo-$version.apk
 cp app/build/outputs/apk/release/app-release.apk "$apk"
 
+# What the updater reads first: a github.com download, so the China proxies
+# can serve it, unlike api.github.com.
+manifest=app/build/outputs/apk/release/latest.json
+NOTES="$notes" TAG="$tag" SIZE=$(stat -f%z "$apk") SHA=$(shasum -a 256 "$apk" | cut -d' ' -f1) \
+  APK="https://github.com/$repo/releases/download/$tag/$(basename "$apk")" python3 -c '
+import json, os
+print(json.dumps({"tag": os.environ["TAG"], "notes": os.environ["NOTES"], "apk": os.environ["APK"],
+                  "size": int(os.environ["SIZE"]), "sha256": os.environ["SHA"]}, ensure_ascii=False))' > "$manifest"
+
 git tag -a "$tag" -m "$tag"
 git push origin "$tag"
-gh release create "$tag" "$apk" --repo "$repo" --title "$tag" --notes "$notes"
+gh release create "$tag" "$apk" "$manifest" --repo "$repo" --title "$tag" --notes "$notes"

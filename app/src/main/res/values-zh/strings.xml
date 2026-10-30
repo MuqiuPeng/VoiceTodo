@@ -50,7 +50,10 @@
     <string name="back">‹ 返回</string>
     <string name="settings">设置</string>
     <string name="section_speech">语音包</string>
-    <string name="pack_source">下载源</string>
+    <string name="section_source">下载源</string>
+    <string name="section_widget">桌面小组件</string>
+    <string name="widget_add">添加到桌面</string>
+    <string name="widget_add_manual">当前桌面不支持从这里添加：请长按桌面空白处 → 小组件（服务卡片）→ VoiceTodo。</string>
     <string name="source_china">国内镜像</string>
     <string name="section_permissions">提醒权限</string>
     <string name="section_recordings">录音</string>

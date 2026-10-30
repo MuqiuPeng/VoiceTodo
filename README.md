@@ -25,7 +25,8 @@ OpenAI-compatible endpoint to refine parsing when online is planned, not built.
   hold to talk, or recording hands-free from the icon (one cell wide, the
   widget is only that icon, dark or white to suit the wallpaper; a widget cannot be
   long-pressed, so that stops on ~1.6 s of silence), with a compact
-  confirmation and ✓ to save. Speech →
+  confirmation and ✓ to save. Settings → Add to home screen places it where
+  the launcher supports that. Speech →
   SenseVoice int8 via sherpa-onnx, fully offline → parser → confirmation
   card → SQLite → one exact alarm per task (lead time, then due time;
   date-only tasks the evening before and the morning of). Notifications
@@ -101,13 +102,20 @@ SHA-256 pinned in `SpeechPacks.kt`:
 | SenseVoice (2025-09-09, int8) | 226 MB | Good Chinese; English words often misheard, English in capitals |
 | Zipformer zh-en (2023-11-22, int8) | 72 MB | Smallest and fastest; weakest on mixed speech |
 
-In mainland China GitHub is slow or blocked, so the speech pack card has a
-download source: **China mirror** fetches from byte-identical ModelScope copies
-of the upstream repos (FunASR Nano, SenseVoice) and then from public GitHub
-proxies (ghfast.top, gh-proxy.com, ghproxy.net); **GitHub** fetches from the
-release assets. Whichever is chosen, the other is tried if it fails, and the
-pinned SHA-256 decides whether a file is accepted. It defaults to the China
-mirror when the phone's region is CN.
+In mainland China GitHub is slow or blocked, so Settings has a **download
+source** for speech packs and updates. **China mirror** fetches packs from
+byte-identical ModelScope copies of the upstream repos (FunASR Nano,
+SenseVoice), and anything on github.com (Zipformer, the APK, the update
+check) through public proxies (ghfast.top, gh-proxy.com, ghproxy.net);
+**GitHub** fetches directly. Whichever is chosen, the other is tried if it
+fails. It defaults to the China mirror when the phone's region is CN.
+
+A mirror can be slow but not wrong: packs must match their pinned SHA-256,
+the APK must match the digest in the release's `latest.json`, and Android
+only installs an update signed with the same key. The update check reads
+`latest.json` (a release asset, published by `scripts/release.sh`) rather
+than api.github.com, which proxies don't cover and which rate-limits shared
+Chinese IPs.
 
 Chosen by running candidates over the same synthesized clips on the device's
 own sherpa-onnx runtime (`DebugBenchReceiver`, debug builds only). On mixed

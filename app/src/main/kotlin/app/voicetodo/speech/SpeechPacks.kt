@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.annotation.StringRes
 import app.voicetodo.R
 import app.voicetodo.net.Download
+import app.voicetodo.net.DownloadSources
 import app.voicetodo.net.describe
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -12,22 +13,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.io.File
-import java.util.Locale
 
 /**
  * [url] is the GitHub copy; [mirrors] serve the same bytes from inside China
  * (the pinned size and digest make any of them safe to use).
  */
-data class PackFile(val name: String, val url: String, val size: Long, val sha256: String, val mirrors: List<String> = emptyList()) {
-    /** Where to try, in order: the chosen source first, the other as a fallback. */
-    fun urls(source: PackSource): List<String> {
-        val china = mirrors + SpeechPacks.GH_PROXIES.map { it + url }
-        return if (source == PackSource.CHINA) china + url else listOf(url) + china
-    }
-}
-
-/** Where speech packs download from. GitHub is slow or blocked in mainland China. */
-enum class PackSource { GITHUB, CHINA }
+data class PackFile(val name: String, val url: String, val size: Long, val sha256: String, val mirrors: List<String> = emptyList())
 
 /** How the recognizer has to be configured for a pack's files. */
 enum class PackKind {
@@ -71,6 +62,7 @@ sealed interface PackState {
 class SpeechPacks(
     private val context: Context,
     private val scope: CoroutineScope,
+    private val sources: DownloadSources,
     private val onActiveChanged: (SpeechPack?) -> Unit,
 ) {
     private val root = File(context.filesDir, "speech")
@@ -84,17 +76,6 @@ class SpeechPacks(
     val active: StateFlow<SpeechPack?> = _active
 
     private val jobs = mutableMapOf<String, Job>()
-
-    private val _source = MutableStateFlow(
-        prefs.getString(KEY_SOURCE, null)?.let { runCatching { PackSource.valueOf(it) }.getOrNull() }
-            ?: if (Locale.getDefault().country == "CN") PackSource.CHINA else PackSource.GITHUB,
-    )
-    val source: StateFlow<PackSource> = _source
-
-    fun setSource(s: PackSource) {
-        prefs.edit().putString(KEY_SOURCE, s.name).apply()
-        _source.value = s
-    }
 
     fun dir(p: SpeechPack) = File(root, p.id)
 
@@ -121,7 +102,9 @@ class SpeechPacks(
             try {
                 var before = 0L
                 for (f in p.files) {
-                    fetch(f, File(dir(p), f.name)) { done -> set(p, PackState.Downloading(before + done, p.size)) }
+                    Download.fetchAny(sources.urls(f.url, f.mirrors), File(dir(p), f.name), f.size, f.sha256) { done ->
+                        set(p, PackState.Downloading(before + done, p.size))
+                    }
                     before += f.size
                 }
                 set(p, PackState.Installed)
@@ -133,22 +116,6 @@ class SpeechPacks(
                 set(p, PackState.Failed(e.describe(context)))
             }
         }
-    }
-
-    /** Each URL in turn until one delivers; a partial file carries over, since every source has the same bytes. */
-    private suspend fun fetch(f: PackFile, dest: File, onProgress: (Long) -> Unit) {
-        var error: Exception? = null
-        for (url in f.urls(_source.value)) {
-            try {
-                Download.fetch(url, dest, f.size, f.sha256, onProgress)
-                return
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                error = error ?: e
-            }
-        }
-        throw error!!
     }
 
     /** Stops the download; the partial file stays and the next download resumes it. */
@@ -176,12 +143,8 @@ class SpeechPacks(
 
     companion object {
         private const val KEY_ACTIVE = "active_pack"
-        private const val KEY_SOURCE = "source"
         private const val GH = "https://github.com/MuqiuPeng/VoiceTodo/releases/download"
         private const val MS = "https://www.modelscope.cn/models"
-
-        /** Public GitHub download proxies reachable from China, checked to pass ranges through. */
-        val GH_PROXIES = listOf("https://ghfast.top/", "https://gh-proxy.com/", "https://ghproxy.net/")
 
         /** Best on Chinese with English mixed in, and on accents. */
         val FUNASR_NANO = SpeechPack(
@@ -203,7 +166,7 @@ class SpeechPacks(
             ),
         )
 
-        /** Two independent ModelScope copies of the upstream repo. Zipformer has none; it goes through [GH_PROXIES]. */
+        /** Two independent ModelScope copies of the upstream repo. Zipformer has none; it goes through [DownloadSources.GH_PROXIES]. */
         private val SENSEVOICE_MS = listOf(
             "aistoy/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09",
             "Mr7Cat/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09",

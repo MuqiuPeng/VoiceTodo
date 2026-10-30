@@ -3,6 +3,7 @@ package app.voicetodo.ui
 import android.Manifest
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -75,8 +76,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.voicetodo.R
 import app.voicetodo.VoiceTodoApp.EngineState
-import app.voicetodo.speech.PackSource
+import app.voicetodo.net.DownloadSource
 import app.voicetodo.speech.PackState
+import app.voicetodo.widget.QuickAddWidget
 import app.voicetodo.speech.SpeechPack
 import app.voicetodo.update.UpdateState
 import app.voicetodo.update.Updater
@@ -266,8 +268,17 @@ private fun SettingsScreen(
                             if (i > 0) HorizontalDivider()
                             PackRow(vm, p, packStates[p.id] ?: PackState.NotInstalled, active = activePack == p, recommended = i == 0)
                         }
-                        HorizontalDivider()
-                        SourceRow(vm)
+                    }
+                }
+            }
+
+            item { SectionTitle(stringResource(R.string.section_widget)) }
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    LinkRow(stringResource(R.string.widget_add)) {
+                        if (!QuickAddWidget.requestPin(context)) {
+                            Toast.makeText(context, context.getString(R.string.widget_add_manual), Toast.LENGTH_LONG).show()
+                        }
                     }
                 }
             }
@@ -303,6 +314,9 @@ private fun SettingsScreen(
                 }
             }
             if (update != UpdateState.Idle) item { UpdateCard(update, vm.updater) }
+
+            item { SectionTitle(stringResource(R.string.section_source)) }
+            item { SourceCard(vm) }
 
             item { SectionTitle(stringResource(R.string.section_about)) }
             item {
@@ -397,18 +411,15 @@ private fun PackRow(vm: MainViewModel, pack: SpeechPack, state: PackState, activ
  * 跟随系统 / 中文 / English. The names of the two languages are written in
  * themselves, so either is recognisable whichever language is showing.
  */
-/** Where packs download from; the other source is still tried if the chosen one fails. */
+/** Where speech packs and updates download from; the other source is still tried if the chosen one fails. */
 @Composable
-private fun SourceRow(vm: MainViewModel) {
-    val source by vm.packs.source.collectAsState()
-    Row(
-        Modifier.padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Icon(Glyphs.Download, stringResource(R.string.pack_source), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        listOf(PackSource.CHINA to R.string.source_china, PackSource.GITHUB to R.string.source_github).forEach { (s, label) ->
-            FilterChip(selected = source == s, onClick = { vm.packs.setSource(s) }, label = { Text(stringResource(label)) })
+private fun SourceCard(vm: MainViewModel) {
+    val source by vm.sources.source.collectAsState()
+    Card(Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(DownloadSource.CHINA to R.string.source_china, DownloadSource.GITHUB to R.string.source_github).forEach { (s, label) ->
+                FilterChip(selected = source == s, onClick = { vm.sources.set(s) }, label = { Text(stringResource(label)) })
+            }
         }
     }
 }

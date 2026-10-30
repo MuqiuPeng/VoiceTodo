@@ -82,6 +82,27 @@ object Download {
         dest
     }
 
+    /** [fetch] from each URL in turn until one delivers; a partial file carries over, since they all serve the same bytes. */
+    suspend fun fetchAny(
+        urls: List<String>,
+        dest: File,
+        size: Long,
+        sha256: String?,
+        onProgress: (Long) -> Unit,
+    ): File {
+        var error: Exception? = null
+        for (url in urls) {
+            try {
+                return fetch(url, dest, size, sha256, onProgress)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                error = error ?: e
+            }
+        }
+        throw error ?: DownloadError(R.string.dl_save)
+    }
+
     fun open(url: String): HttpURLConnection =
         (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000

@@ -90,6 +90,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val engineState = voiceApp.engineState
     val updater = voiceApp.updater
     val packs = voiceApp.packs
+    val sources = voiceApp.sources
 
     fun deleteSpeechPack(pack: SpeechPack) = voiceApp.deleteSpeechPack(pack)
 
